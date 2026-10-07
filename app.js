@@ -45,6 +45,7 @@
     renderReasonRadioOptions();
     bindEvents();
     populateFilterDropdowns();
+    fetchRemoteDataIfAppsScript();
   }
 
   // --- Storage & Sync ---
@@ -80,6 +81,7 @@
             state.beneficiaries = remoteList;
             state.filteredBeneficiaries = [...state.beneficiaries];
             state.filteredReports = [...state.beneficiaries];
+            try { localStorage.setItem(STORAGE_KEY_BENEFICIARIES, JSON.stringify(remoteList)); } catch (e) {}
             populateFilterDropdowns();
             refreshCurrentView();
           }
@@ -112,6 +114,7 @@
           state.beneficiaries = remoteList;
           state.filteredBeneficiaries = [...state.beneficiaries];
           state.filteredReports = [...state.beneficiaries];
+          try { localStorage.setItem(STORAGE_KEY_BENEFICIARIES, JSON.stringify(remoteList)); } catch (e) {}
           populateFilterDropdowns();
           refreshCurrentView();
         }
@@ -130,12 +133,20 @@
       .catch(err => console.warn('Local proxy fetch surveys error:', err));
   }
 
+  const STORAGE_KEY_BENEFICIARIES = 'mvy_survey_beneficiaries_cache';
+
   // --- Beneficiary Data ---
   function loadBeneficiaries() {
-    // If window.INITIAL_BENEFICIARIES exists from fallback data.js, use it initially
-    if (window.INITIAL_BENEFICIARIES && Array.isArray(window.INITIAL_BENEFICIARIES)) {
-      state.beneficiaries = window.INITIAL_BENEFICIARIES;
-    } else {
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY_BENEFICIARIES);
+      if (cached) {
+        state.beneficiaries = JSON.parse(cached);
+      } else if (window.INITIAL_BENEFICIARIES && Array.isArray(window.INITIAL_BENEFICIARIES)) {
+        state.beneficiaries = window.INITIAL_BENEFICIARIES;
+      } else {
+        state.beneficiaries = [];
+      }
+    } catch (e) {
       state.beneficiaries = [];
     }
     state.filteredBeneficiaries = [...state.beneficiaries];
