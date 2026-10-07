@@ -41,34 +41,23 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml'
 };
 
-// Helper to make HTTPS request following redirects (Google Apps Script redirects to script.googleusercontent.com)
-function fetchWithRedirect(targetUrl, options = {}, maxRedirects = 5) {
-  return new Promise((resolve, reject) => {
-    if (maxRedirects <= 0) return reject(new Error('Too many redirects'));
-
-    const parsed = url.parse(targetUrl);
-    const reqOptions = {
-      hostname: parsed.hostname,
-      path: parsed.path,
-      method: options.method || 'GET',
-      headers: options.headers || {}
-    };
-
-    const req = https.request(reqOptions, res => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        // Follow redirect
-        return resolve(fetchWithRedirect(res.headers.location, options, maxRedirects - 1));
-      }
-
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve({ statusCode: res.statusCode, data, headers: res.headers }));
-    });
-
-    req.on('error', reject);
-    if (options.body) req.write(options.body);
-    req.end();
-  });
+// Helper using native fetch (handles redirects automatically and robustly)
+async function fetchWithRedirect(targetUrl, options = {}) {
+  const fetchOptions = {
+    method: options.method || 'GET',
+    headers: options.headers || {},
+    redirect: 'follow'
+  };
+  if (options.body) {
+    fetchOptions.body = options.body;
+  }
+  const response = await fetch(targetUrl, fetchOptions);
+  const data = await response.text();
+  return {
+    statusCode: response.status,
+    data: data,
+    headers: Object.fromEntries(response.headers.entries())
+  };
 }
 
 const server = http.createServer(async (req, res) => {
