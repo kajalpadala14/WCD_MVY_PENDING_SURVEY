@@ -255,11 +255,11 @@ function getCompletedSurveys() {
       var appNo = (row[0] || "").toString().trim();
       if (!appNo) continue;
 
-      // चेक करें कि क्या 9 कॉलमों में कोई 1 या 'yes' भरा है
+      // चेक करें कि क्या 9 कॉलमों में कोई कारण (reason text) या 1 या 'yes' भरा है
       var matchedReason = "";
       for (var colIdx in colReasonMap) {
         var val = (row[colIdx] || "").toString().trim();
-        if (val === "1" || val.toLowerCase() === "yes" || val === "हाँ" || val === "true") {
+        if (val === "1" || val.toLowerCase() === "yes" || val === "हाँ" || val === "true" || val === colReasonMap[colIdx] || val.length > 2) {
           matchedReason = colReasonMap[colIdx];
           break;
         }
@@ -341,7 +341,8 @@ function submitSurvey(record) {
       }
 
       if (reasonColIdx !== -1) {
-        sSheet.getRange(targetRowIdx, reasonColIdx).setValue(1);
+        // नंबर (1) के स्थान पर पूरा कारण (Reason text) दर्ज करें
+        sSheet.getRange(targetRowIdx, reasonColIdx).setValue(selectedReason);
       } else {
         // यदि सीधा कारण कॉलम न मिले तो Col G (7) में कारण लिखें
         sSheet.getRange(targetRowIdx, 7).setValue(selectedReason);
