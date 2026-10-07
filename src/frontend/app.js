@@ -24,6 +24,7 @@
   const state = {
     user: null, // { role: 'survey_user' | 'admin', username: string }
     beneficiaries: [], // All raw beneficiaries from data source
+    isLoadingBeneficiaries: false, // Flag for async network loading
     surveys: {}, // applicantNo -> { applicantNo, reason, status: 'Completed', surveyedAt, surveyedBy }
     filteredBeneficiaries: [],
     currentPage: 1,
@@ -106,23 +107,49 @@
       return;
     }
 
-    // 2. Localhost Environment (.env Connected Proxy Server)
+    // 2. Web / Localhost Environment (Proxy or Direct)
+    state.isLoadingBeneficiaries = true;
+    updateDashboard();
+    renderPendingTable();
+    renderReportTable();
+
     fetch('/api/getBeneficiaries')
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('Proxy status: ' + r.status);
+        return r.json();
+      })
+      .catch(err => {
+        console.warn('Proxy fetch beneficiaries error, trying direct fallback:', err);
+        return fetch('https://script.google.com/macros/s/AKfycbz_98bYm3D30F82_pIe8U1Uj51qf9B657P1r0rD-9bM/exec?action=getBeneficiaries')
+          .then(r => r.json());
+      })
       .then(remoteList => {
+        state.isLoadingBeneficiaries = false;
         if (Array.isArray(remoteList) && remoteList.length > 0) {
           state.beneficiaries = remoteList;
-          state.filteredBeneficiaries = [...state.beneficiaries];
-          state.filteredReports = [...state.beneficiaries];
           try { localStorage.setItem(STORAGE_KEY_BENEFICIARIES, JSON.stringify(remoteList)); } catch (e) {}
           populateFilterDropdowns();
           refreshCurrentView();
+        } else {
+          refreshCurrentView();
         }
       })
-      .catch(err => console.warn('Local proxy fetch beneficiaries error:', err));
+      .catch(err => {
+        state.isLoadingBeneficiaries = false;
+        console.error('All beneficiary fetch attempts failed:', err);
+        refreshCurrentView();
+      });
 
     fetch('/api/getCompletedSurveys')
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('Proxy status: ' + r.status);
+        return r.json();
+      })
+      .catch(err => {
+        console.warn('Proxy fetch surveys error, trying direct fallback:', err);
+        return fetch('https://script.google.com/macros/s/AKfycbz_98bYm3D30F82_pIe8U1Uj51qf9B657P1r0rD-9bM/exec?action=getCompletedSurveys')
+          .then(r => r.json());
+      })
       .then(remoteMap => {
         if (remoteMap && typeof remoteMap === 'object') {
           state.surveys = remoteMap;
@@ -130,7 +157,7 @@
           refreshCurrentView();
         }
       })
-      .catch(err => console.warn('Local proxy fetch surveys error:', err));
+      .catch(err => console.warn('Surveys fetch error:', err));
   }
 
   const STORAGE_KEY_BENEFICIARIES = 'mvy_survey_beneficiaries_cache';
@@ -499,17 +526,31 @@
       }
     });
 
-    const surveyPendingCount = totalPending - completedCount;
+    const surveyPendingCount = Math.max(0, totalPending - completedCount);
 
-    // Update Metrics Cards
-    document.getElementById('metricTotalPending').textContent = totalPending.toLocaleString('en-IN');
-    document.getElementById('metricCompleted').textContent = completedCount.toLocaleString('en-IN');
-    document.getElementById('metricRemaining').textContent = surveyPendingCount.toLocaleString('en-IN');
+    const elTotal = document.getElementById('metricTotalPending');
+    const elCompleted = document.getElementById('metricCompleted');
+    const elRemaining = document.getElementById('metricRemaining');
+
+    if (state.isLoadingBeneficiaries && totalPending === 0) {
+      const spinnerHtml = '<i class="fas fa-spinner fa-spin" style="font-size: 20px; color: var(--gov-primary);"></i> <span style="font-size: 14px; font-weight: normal; color: var(--gov-text-muted);">लोड हो रहा है...</span>';
+      if (elTotal) elTotal.innerHTML = spinnerHtml;
+      if (elCompleted) elCompleted.innerHTML = spinnerHtml;
+      if (elRemaining) elRemaining.innerHTML = spinnerHtml;
+    } else {
+      if (elTotal) elTotal.textContent = totalPending.toLocaleString('en-IN');
+      if (elCompleted) elCompleted.textContent = completedCount.toLocaleString('en-IN');
+      if (elRemaining) elRemaining.textContent = surveyPendingCount.toLocaleString('en-IN');
+    }
 
     // Reason-wise Report Table
     const tbody = document.getElementById('dashboardReasonTableBody');
     if (tbody) {
       tbody.innerHTML = '';
+      if (state.isLoadingBeneficiaries && totalPending === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 24px; color: var(--gov-primary);"><i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Google Sheet से लाइव डेटा लोड हो रहा है, कृपया प्रतीक्षा करें...</td></tr>';
+        return;
+      }
       SURVEY_REASONS.forEach((reason, idx) => {
         const count = reasonCounts[reason] || 0;
         const pct = totalPending > 0 ? ((count / totalPending) * 100).toFixed(1) : 0;
@@ -586,8 +627,14 @@
       `कुल हितग्राही: ${total.toLocaleString('en-IN')} (प्रदर्शित ${total > 0 ? startIdx + 1 : 0} से ${endIdx})`;
 
     tbody.innerHTML = '';
+    if (state.isLoadingBeneficiaries && total === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 32px; color: var(--gov-primary); font-size: 14px;"><i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Google Sheet से हितग्राही सूची लोड हो रही है (कुल 3,360 रिकॉर्ड्स)...</td></tr>`;
+      renderPagination(0, 1);
+      return;
+    }
+
     if (pageRecords.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 24px; color: var(--gov-text-muted);">कोई रिकॉर्ड नहीं मिला।</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 24px; color: var(--gov-text-muted);">कोई रिकॉर्ड नहीं मिला।</td></tr>`;
       renderPagination(0, 1);
       return;
     }
@@ -773,9 +820,22 @@
   }
 
   function refreshCurrentView() {
-    renderPendingTable();
+    // If filter inputs exist, run filter functions so lists stay fresh
+    if (document.getElementById('filterProject')) {
+      applyFilters();
+    } else {
+      state.filteredBeneficiaries = [...state.beneficiaries];
+      renderPendingTable();
+    }
+
     updateDashboard();
-    renderReportTable();
+
+    if (document.getElementById('reportFilterProject')) {
+      applyReportFilters();
+    } else {
+      state.filteredReports = [...state.beneficiaries];
+      renderReportTable();
+    }
   }
 
   // --- Survey Report & Export ---
@@ -839,6 +899,12 @@
       `कुल रिकॉर्ड: ${total.toLocaleString('en-IN')} (प्रदर्शित ${total > 0 ? startIdx + 1 : 0} से ${endIdx})`;
 
     tbody.innerHTML = '';
+    if (state.isLoadingBeneficiaries && total === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 32px; color: var(--gov-primary); font-size: 14px;"><i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Google Sheet से रिपोर्ट डेटा लोड हो रहा है...</td></tr>`;
+      renderReportPagination(0, 1);
+      return;
+    }
+
     if (pageRecords.length === 0) {
       tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 24px; color: var(--gov-text-muted);">कोई रिपोर्ट डेटा उपलब्ध नहीं है।</td></tr>`;
       renderReportPagination(0, 1);
