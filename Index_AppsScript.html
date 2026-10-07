@@ -1343,19 +1343,23 @@ body {
         refreshCurrentView();
       });
 
-    fetch('/api/getCompletedSurveys')
+    fetch('/api/getCompletedSurveys?_t=' + Date.now())
       .then(r => {
         if (!r.ok) throw new Error('Proxy status: ' + r.status);
         return r.json();
       })
       .catch(err => {
         console.warn('Proxy fetch surveys error, trying direct fallback:', err);
-        return fetch('https://script.google.com/macros/s/AKfycbz_98bYm3D30F82_pIe8U1Uj51qf9B657P1r0rD-9bM/exec?action=getCompletedSurveys')
+        return fetch('https://script.google.com/macros/s/AKfycbz_98bYm3D30F82_pIe8U1Uj51qf9B657P1r0rD-9bM/exec?action=getCompletedSurveys&_t=' + Date.now())
           .then(r => r.json());
       })
       .then(remoteMap => {
         if (remoteMap && typeof remoteMap === 'object') {
           state.surveys = remoteMap;
+          saveSurveysToStorage();
+          refreshCurrentView();
+        } else if (!remoteMap || Object.keys(remoteMap || {}).length === 0) {
+          state.surveys = {};
           saveSurveysToStorage();
           refreshCurrentView();
         }
