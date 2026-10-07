@@ -71,10 +71,9 @@ ${css}
         प्रवेश करें (Login)
       </button>
 
-      <div style="margin-top: 14px; padding: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 4px; font-size: 12px; color: var(--gov-text-muted);">
-        <strong>डिफ़ॉल्ट लॉगिन क्रेडेंशियल (Demo Credentials):</strong>
-        <div style="margin-top: 4px;">• <strong>Admin:</strong> ID: <code>admin</code> | Pass: <code>admin@2026</code></div>
-        <div>• <strong>Operator:</strong> ID: <code>operator</code> | Pass: <code>mvy@2026</code></div>
+      <div style="margin-top: 14px; padding: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 4px; font-size: 12px; color: var(--gov-text-muted); text-align: center;">
+        <i class="fas fa-lock" style="margin-right: 4px;"></i>
+        लॉगिन क्रेडेंशियल सीधे आपकी <strong>Google Sheet ('User' टैब)</strong> से सत्यापित किए जाते हैं।
       </div>
     </form>
   </div>

@@ -70,9 +70,26 @@
     }
   }
 
-  // If deployed on Google Apps Script, fetch completed surveys from Sheet
-  function fetchRemoteSurveysIfAppsScript() {
+  // --- Remote Data Sync (Beneficiaries & Surveys) ---
+  function fetchRemoteDataIfAppsScript() {
     if (typeof google !== 'undefined' && google.script && google.script.run) {
+      // 1. Fetch Beneficiaries dynamically from 'survey' sheet
+      google.script.run
+        .withSuccessHandler(function (remoteList) {
+          if (Array.isArray(remoteList) && remoteList.length > 0) {
+            state.beneficiaries = remoteList;
+            state.filteredBeneficiaries = [...state.beneficiaries];
+            state.filteredReports = [...state.beneficiaries];
+            populateFilterDropdowns();
+            refreshCurrentView();
+          }
+        })
+        .withFailureHandler(function (err) {
+          console.warn('Could not load remote beneficiaries, using local fallback:', err);
+        })
+        .getBeneficiaries();
+
+      // 2. Fetch Completed Surveys dynamically from 'survey' sheet
       google.script.run
         .withSuccessHandler(function (remoteMap) {
           if (remoteMap && typeof remoteMap === 'object') {
@@ -90,6 +107,7 @@
 
   // --- Beneficiary Data ---
   function loadBeneficiaries() {
+    // If window.INITIAL_BENEFICIARIES exists from fallback data.js, use it initially
     if (window.INITIAL_BENEFICIARIES && Array.isArray(window.INITIAL_BENEFICIARIES)) {
       state.beneficiaries = window.INITIAL_BENEFICIARIES;
     } else {
@@ -114,22 +132,6 @@
     }
   }
 
-  // User credentials dictionary (ID and Password based, non-email)
-  const SYSTEM_ACCOUNTS = {
-    'admin': {
-      password: 'admin@2026',
-      role: 'admin',
-      displayName: 'प्रशासक (Admin)',
-      defaultName: 'Admin Dantewada'
-    },
-    'operator': {
-      password: 'mvy@2026',
-      role: 'operator',
-      displayName: 'ऑपरेटर (Operator)',
-      defaultName: 'Survey Operator'
-    }
-  };
-
   function handleLogin(e) {
     if (e) e.preventDefault();
     const userIdInput = document.getElementById('loginUserId');
@@ -148,7 +150,7 @@
       return;
     }
 
-    // If running in Google Apps Script Web App environment, verify against Google Sheet
+    // Google Apps Script Web App environment: Verify LIVE from Google Sheet 'User' tab
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       if (btnSubmit) {
         btnSubmit.disabled = true;
@@ -160,16 +162,16 @@
         .withSuccessHandler(function (result) {
           if (btnSubmit) {
             btnSubmit.disabled = false;
-            btnSubmit.innerHTML = '<i class="fas fa-sign-in-alt"></i> लॉगिन करें (Login)';
+            btnSubmit.innerHTML = 'प्रवेश करें (Login)';
           }
           if (result && result.success && result.user) {
             state.user = result.user;
             sessionStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(state.user));
             showMainApp();
-            fetchRemoteSurveysIfAppsScript();
+            fetchRemoteDataIfAppsScript();
           } else {
             if (alertBox) {
-              alertBox.textContent = (result && result.message) || 'अमान्य यूज़र आईडी अथवा पासवर्ड!';
+              alertBox.textContent = (result && result.message) || 'अमान्य यूज़र आईडी अथवा पासवर्ड! कृपया Google Sheet में जांचें।';
               alertBox.style.display = 'block';
             }
           }
@@ -177,57 +179,22 @@
         .withFailureHandler(function (err) {
           if (btnSubmit) {
             btnSubmit.disabled = false;
-            btnSubmit.innerHTML = '<i class="fas fa-sign-in-alt"></i> लॉगिन करें (Login)';
+            btnSubmit.innerHTML = 'प्रवेश करें (Login)';
           }
-          // Fallback to local accounts if connection error
-          const account = SYSTEM_ACCOUNTS[userId];
-          if (account && account.password === password) {
-            state.user = {
-              userId: userId,
-              role: account.role,
-              username: account.defaultName,
-              displayName: account.displayName
-            };
-            sessionStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(state.user));
-            showMainApp();
-            fetchRemoteSurveysIfAppsScript();
-          } else {
-            if (alertBox) {
-              alertBox.textContent = 'सर्वर से संपर्क विफल एवं अमान्य विवरण: ' + (err.message || err);
-              alertBox.style.display = 'block';
-            }
+          if (alertBox) {
+            alertBox.textContent = 'Google Sheet सर्वर से संपर्क विफल: ' + (err.message || err);
+            alertBox.style.display = 'block';
           }
         })
         .verifyLogin(userId, password);
       return;
     }
 
-    // Local Browser Testing Environment
-    const account = SYSTEM_ACCOUNTS[userId];
-    if (!account || account.password !== password) {
-      if (alertBox) {
-        alertBox.textContent = 'अमान्य यूज़र आईडी अथवा पासवर्ड! कृपया सही विवरण दर्ज करें।';
-        alertBox.style.display = 'block';
-      }
-      return;
-    }
-
-    // Hide error alert
+    // Local Test Environment Fallback
     if (alertBox) {
-      alertBox.textContent = '';
-      alertBox.style.display = 'none';
+      alertBox.textContent = 'लोकल ब्राउज़र में लॉगिन के लिए Google Apps Script Web App पर खोलें या Sheet से कनेक्ट करें।';
+      alertBox.style.display = 'block';
     }
-
-    state.user = {
-      userId: userId,
-      role: account.role,
-      username: account.defaultName,
-      displayName: account.displayName
-    };
-
-    sessionStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(state.user));
-    showMainApp();
-    fetchRemoteSurveysIfAppsScript();
   }
 
   function handleLogout() {
