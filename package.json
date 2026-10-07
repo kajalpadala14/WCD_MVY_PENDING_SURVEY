@@ -4,7 +4,7 @@
   "description": "MVY Pending Survey Web Portal - District Panchayat Dantewada (WCD Department)",
   "main": "app.js",
   "scripts": {
-    "start": "npx serve -l 8080 -s .",
+    "start": "node server.js",
     "build:html": "node scripts/utilities/generate_index.js",
     "build:gas": "node scripts/utilities/build_apps_script.js",
     "build": "node scripts/utilities/generate_index.js && node scripts/utilities/build_apps_script.js"

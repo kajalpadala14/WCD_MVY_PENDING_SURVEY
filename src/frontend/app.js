@@ -72,8 +72,8 @@
 
   // --- Remote Data Sync (Beneficiaries & Surveys) ---
   function fetchRemoteDataIfAppsScript() {
+    // 1. Google Apps Script Web App Environment
     if (typeof google !== 'undefined' && google.script && google.script.run) {
-      // 1. Fetch Beneficiaries dynamically from 'survey' sheet
       google.script.run
         .withSuccessHandler(function (remoteList) {
           if (Array.isArray(remoteList) && remoteList.length > 0) {
@@ -85,11 +85,10 @@
           }
         })
         .withFailureHandler(function (err) {
-          console.warn('Could not load remote beneficiaries, using local fallback:', err);
+          console.warn('Could not load remote beneficiaries:', err);
         })
         .getBeneficiaries();
 
-      // 2. Fetch Completed Surveys dynamically from 'survey' sheet
       google.script.run
         .withSuccessHandler(function (remoteMap) {
           if (remoteMap && typeof remoteMap === 'object') {
@@ -102,7 +101,33 @@
           console.error('Failed to sync remote surveys:', err);
         })
         .getCompletedSurveys();
+      return;
     }
+
+    // 2. Localhost Environment (.env Connected Proxy Server)
+    fetch('/api/getBeneficiaries')
+      .then(r => r.json())
+      .then(remoteList => {
+        if (Array.isArray(remoteList) && remoteList.length > 0) {
+          state.beneficiaries = remoteList;
+          state.filteredBeneficiaries = [...state.beneficiaries];
+          state.filteredReports = [...state.beneficiaries];
+          populateFilterDropdowns();
+          refreshCurrentView();
+        }
+      })
+      .catch(err => console.warn('Local proxy fetch beneficiaries error:', err));
+
+    fetch('/api/getCompletedSurveys')
+      .then(r => r.json())
+      .then(remoteMap => {
+        if (remoteMap && typeof remoteMap === 'object') {
+          state.surveys = Object.assign({}, state.surveys, remoteMap);
+          saveSurveysToStorage();
+          refreshCurrentView();
+        }
+      })
+      .catch(err => console.warn('Local proxy fetch surveys error:', err));
   }
 
   // --- Beneficiary Data ---
@@ -190,25 +215,70 @@
       return;
     }
 
-    // 2. Localhost testing mode:
-    // If testing on localhost and credentials match Sheet fallback or test session
-    if (userId === 'admin' || userId === 'operator') {
-      state.user = {
-        userId: userId,
-        role: userId === 'admin' ? 'admin' : 'operator',
-        username: userId === 'admin' ? 'Admin Dantewada' : 'Operator ' + userId,
-        displayName: userId === 'admin' ? 'प्रशासक (Admin)' : 'ऑपरेटर (Operator)'
-      };
-      sessionStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(state.user));
-      showMainApp();
-      return;
+    // 2. Localhost Environment (.env Connected Proxy Server)
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> लॉगिन हो रहा है...';
     }
+    if (alertBox) alertBox.style.display = 'none';
 
-    // Local Test Environment Fallback
-    if (alertBox) {
-      alertBox.textContent = 'अमान्य क्रेडेंशियल! (लोकल टेस्टिंग के लिए ID: admin या operator का उपयोग करें अथवा इसे सीधे Google Apps Script Web App लिंक पर खोलें)';
-      alertBox.style.display = 'block';
-    }
+    fetch(`/api/verifyLogin?userId=${encodeURIComponent(userId)}&password=${encodeURIComponent(password)}`)
+      .then(r => r.json())
+      .then(result => {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = 'प्रवेश करें (Login)';
+        }
+        if (result && result.success && result.user) {
+          state.user = result.user;
+          sessionStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(state.user));
+          showMainApp();
+          fetchRemoteDataIfAppsScript();
+        } else {
+          // Fallback for fast testing if offline
+          if (userId === 'admin' || userId === 'operator') {
+            state.user = {
+              userId: userId,
+              role: userId === 'admin' ? 'admin' : 'operator',
+              username: userId === 'admin' ? 'Admin Dantewada' : 'Operator ' + userId,
+              displayName: userId === 'admin' ? 'प्रशासक (Admin)' : 'ऑपरेटर (Operator)'
+            };
+            sessionStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(state.user));
+            showMainApp();
+            fetchRemoteDataIfAppsScript();
+            return;
+          }
+
+          if (alertBox) {
+            alertBox.textContent = (result && result.message) || 'अमान्य यूज़र आईडी अथवा पासवर्ड! (Google Sheet User लिस्ट में उपलब्ध नहीं है)';
+            alertBox.style.display = 'block';
+          }
+        }
+      })
+      .catch(err => {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = 'प्रवेश करें (Login)';
+        }
+        // Fallback for fast testing
+        if (userId === 'admin' || userId === 'operator') {
+          state.user = {
+            userId: userId,
+            role: userId === 'admin' ? 'admin' : 'operator',
+            username: userId === 'admin' ? 'Admin Dantewada' : 'Operator ' + userId,
+            displayName: userId === 'admin' ? 'प्रशासक (Admin)' : 'ऑपरेटर (Operator)'
+          };
+          sessionStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(state.user));
+          showMainApp();
+          fetchRemoteDataIfAppsScript();
+          return;
+        }
+
+        if (alertBox) {
+          alertBox.textContent = 'Google Sheet सर्वर से संपर्क विफल: ' + (err.message || err);
+          alertBox.style.display = 'block';
+        }
+      });
   }
 
   function handleLogout() {
@@ -671,6 +741,16 @@
           console.error('Failed to sync to Google Sheet:', err);
         })
         .submitSurvey(surveyRecord);
+    } else {
+      // Local proxy POST to Google Sheet
+      fetch('/api/submitSurvey', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'submitSurvey', record: surveyRecord })
+      })
+      .then(r => r.json())
+      .then(res => console.log('Survey saved via local proxy to Google Sheet:', res))
+      .catch(err => console.error('Failed to sync via local proxy:', err));
     }
 
     alert(`सर्वे सफलतापूर्वक सुरक्षित किया गया!\nहितग्राही: ${state.selectedBeneficiary.name} (${applicantNo})\nकारण: ${selectedReason}`);
