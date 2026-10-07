@@ -10,7 +10,7 @@ const template = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MVY Pending Survey - जिला पंचायत दंतेवाड़ा</title>
+  <title>MVY Pending Survey - महिला एवं बाल विकास विभाग ,Dantewada</title>
   <style>
 ${css}
   </style>
@@ -34,7 +34,7 @@ ${css}
       <div class="emblem-placeholder">CG</div>
       <div class="header-titles">
         <h1>MVY Pending Survey</h1>
-        <h2>जिला पंचायत दंतेवाड़ा (District Panchayat Dantewada)</h2>
+        <h2>महिला एवं बाल विकास विभाग ,Dantewada</h2>
       </div>
     </div>
   </header>
@@ -51,7 +51,7 @@ ${css}
     <div class="login-header">
       <div class="emblem-placeholder" style="margin: 0 auto 12px auto;">CG</div>
       <h2>MVY Pending Survey</h2>
-      <p>जिला पंचायत दंतेवाड़ा (District Panchayat Dantewada)</p>
+      <p>महिला एवं बाल विकास विभाग ,Dantewada</p>
     </div>
 
     <form id="loginForm">

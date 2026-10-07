@@ -1,5 +1,5 @@
 /**
- * MVY Pending Survey - जिला पंचायत दंतेवाड़ा
+ * MVY Pending Survey - महिला एवं बाल विकास विभाग ,Dantewada
  * Google Apps Script Backend (Code.gs)
  *
  * 100% Dynamic & Google Sheet Powered:
@@ -31,7 +31,7 @@ function doGet(e) {
 
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('MVY Pending Survey - जिला पंचायत दंतेवाड़ा')
+    .setTitle('MVY Pending Survey - महिला एवं बाल विकास विभाग ,Dantewada')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
