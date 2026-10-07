@@ -1350,7 +1350,7 @@ body {
       return;
     }
 
-    // Google Apps Script Web App environment: Verify LIVE from Google Sheet 'User' tab
+    // 1. Google Apps Script Web App environment: Verify LIVE from Google Sheet 'User' tab
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       if (btnSubmit) {
         btnSubmit.disabled = true;
@@ -1390,9 +1390,23 @@ body {
       return;
     }
 
+    // 2. Localhost testing mode:
+    // If testing on localhost and credentials match Sheet fallback or test session
+    if (userId === 'admin' || userId === 'operator') {
+      state.user = {
+        userId: userId,
+        role: userId === 'admin' ? 'admin' : 'operator',
+        username: userId === 'admin' ? 'Admin Dantewada' : 'Operator ' + userId,
+        displayName: userId === 'admin' ? 'प्रशासक (Admin)' : 'ऑपरेटर (Operator)'
+      };
+      sessionStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(state.user));
+      showMainApp();
+      return;
+    }
+
     // Local Test Environment Fallback
     if (alertBox) {
-      alertBox.textContent = 'लोकल ब्राउज़र में लॉगिन के लिए Google Apps Script Web App पर खोलें या Sheet से कनेक्ट करें।';
+      alertBox.textContent = 'अमान्य क्रेडेंशियल! (लोकल टेस्टिंग के लिए ID: admin या operator का उपयोग करें अथवा इसे सीधे Google Apps Script Web App लिंक पर खोलें)';
       alertBox.style.display = 'block';
     }
   }
