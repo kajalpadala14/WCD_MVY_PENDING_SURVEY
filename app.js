@@ -94,7 +94,7 @@
       google.script.run
         .withSuccessHandler(function (remoteMap) {
           if (remoteMap && typeof remoteMap === 'object') {
-            state.surveys = Object.assign({}, state.surveys, remoteMap);
+            state.surveys = remoteMap;
             saveSurveysToStorage();
             refreshCurrentView();
           }
@@ -125,7 +125,7 @@
       .then(r => r.json())
       .then(remoteMap => {
         if (remoteMap && typeof remoteMap === 'object') {
-          state.surveys = Object.assign({}, state.surveys, remoteMap);
+          state.surveys = remoteMap;
           saveSurveysToStorage();
           refreshCurrentView();
         }

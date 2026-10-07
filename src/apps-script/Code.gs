@@ -22,6 +22,8 @@ function doGet(e) {
       result = getCompletedSurveys();
     } else if (action === "verifyLogin") {
       result = verifyLogin(e.parameter.userId, e.parameter.password);
+    } else if (action === "clearAllSurveys") {
+      result = clearAllSurveys();
     }
     return ContentService.createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);
@@ -40,6 +42,10 @@ function doPost(e) {
     if (data.action === "submitSurvey") {
       var res = submitSurvey(data.record);
       return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    } else if (data.action === "clearAllSurveys") {
+      var clearRes = clearAllSurveys();
+      return ContentService.createTextOutput(JSON.stringify(clearRes))
         .setMimeType(ContentService.MimeType.JSON);
     }
   } catch (err) {
@@ -382,6 +388,43 @@ function submitSurvey(record) {
         applicantNo: applicantNo
       };
     }
+  } catch (err) {
+    return {
+      success: false,
+      message: "त्रुटि: " + err.toString()
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * 6. सभी सर्वे प्रविष्टियों को साफ़ (Clear) करें
+ */
+function clearAllSurveys() {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    var ss = getTargetSpreadsheet();
+    var sSheet = getSurveySheet(ss);
+    if (!sSheet) {
+      return { success: false, message: "'survey' शीट नहीं मिली।" };
+    }
+
+    var lastRow = sSheet.getLastRow();
+    var lastCol = sSheet.getLastColumn();
+    if (lastRow < 2) {
+      return { success: true, message: "शीट में कोई डेटा साफ़ करने हेतु नहीं है।" };
+    }
+
+    // Col G (7) से लेकर Col Q (17) या अंतिम कॉलम तक की सभी प्रविष्टियों को खाली करें
+    var clearCols = Math.max(11, lastCol - 6);
+    sSheet.getRange(2, 7, lastRow - 1, clearCols).clearContent();
+
+    return {
+      success: true,
+      message: "सभी सर्वे प्रविष्टियां (कारण, समय, ऑपरेटर) Google Sheet से सफलतापूर्वक साफ़ (Clear) कर दी गई हैं!"
+    };
   } catch (err) {
     return {
       success: false,
