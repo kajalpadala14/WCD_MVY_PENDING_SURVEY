@@ -190,7 +190,7 @@ ${css}
                 <th>Sector</th>
                 <th>Anganwadi Centre</th>
                 <th>Survey Status</th>
-                <th>सर्वे दिनांक व समय (Date &amp; Time)</th>
+                <th>Date &amp; Time</th>
                 <th style="text-align: center;">कार्यवाही (Action)</th>
               </tr>
             </thead>
@@ -278,7 +278,7 @@ ${css}
                 <th>Anganwadi Centre</th>
                 <th>e-KYC Reason</th>
                 <th>Survey Status</th>
-                <th>सर्वे दिनांक व समय (Date &amp; Time)</th>
+                <th>Date &amp; Time</th>
                 <th style="text-align: center;">कार्यवाही (Action)</th>
               </tr>
             </thead>
@@ -389,7 +389,7 @@ ${css}
                   <th>Anganwadi Centre</th>
                   <th>e-KYC Reason</th>
                   <th>Survey Status</th>
-                  <th>सर्वे दिनांक व समय (Date &amp; Time)</th>
+                  <th>Date &amp; Time</th>
                 </tr>
               </thead>
               <tbody id="reviewTableBody">

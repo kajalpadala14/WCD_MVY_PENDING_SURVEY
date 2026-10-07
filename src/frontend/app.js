@@ -888,7 +888,7 @@
     "Anganwadi Centre",
     "e-KYC Reason",
     "Survey Status",
-    "सर्वे दिनांक व समय (Date & Time)"
+    "Date & Time"
   ];
 
   window.openExportReviewModal = function () {
