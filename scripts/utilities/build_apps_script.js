@@ -3,26 +3,21 @@ const path = require('path');
 
 const rootDir = path.join(__dirname, '..', '..');
 const css = fs.readFileSync(path.join(rootDir, 'src', 'frontend', 'style.css'), 'utf8');
-const dataJs = fs.readFileSync(path.join(rootDir, 'config', 'data.js'), 'utf8');
 const appJs = fs.readFileSync(path.join(rootDir, 'src', 'frontend', 'app.js'), 'utf8');
 let html = fs.readFileSync(path.join(rootDir, 'src', 'frontend', 'index.html'), 'utf8');
 
 // Replace <link rel="stylesheet" href="style.css"> with <style>...</style>
 html = html.replace('<link rel="stylesheet" href="style.css">', `<style>\n${css}\n</style>`);
 
-// Replace <script src="data.js"></script> and <script src="app.js"></script>
+// Replace <script src="app.js"></script>
 const scriptBundle = `
 <script>
-// --- Embedded Beneficiary Data from PDF ---
-${dataJs}
-
-// --- Application Logic ---
+// --- Application Logic (100% Dynamic from Google Sheets) ---
 ${appJs}
 </script>
 `;
 
-html = html.replace('<script src="data.js"></script>\n  <script src="app.js"></script>', scriptBundle);
-html = html.replace('<script src="data.js"></script>\r\n  <script src="app.js"></script>', scriptBundle);
+html = html.replace('<script src="app.js"></script>', scriptBundle);
 
 const targetRoot = path.join(rootDir, 'Index_AppsScript.html');
 const targetSrc = path.join(rootDir, 'src', 'apps-script', 'Index_AppsScript.html');

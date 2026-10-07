@@ -406,7 +406,6 @@ ${css}
   </div>
 
   <!-- Scripts -->
-  <script src="data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
