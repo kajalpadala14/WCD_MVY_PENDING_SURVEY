@@ -979,6 +979,7 @@ body {
                 <th>Sector</th>
                 <th>Anganwadi Centre</th>
                 <th>Survey Status</th>
+                <th>सर्वे दिनांक व समय (Date &amp; Time)</th>
                 <th style="text-align: center;">कार्यवाही (Action)</th>
               </tr>
             </thead>
@@ -1066,6 +1067,7 @@ body {
                 <th>Anganwadi Centre</th>
                 <th>e-KYC Reason</th>
                 <th>Survey Status</th>
+                <th>सर्वे दिनांक व समय (Date &amp; Time)</th>
                 <th style="text-align: center;">कार्यवाही (Action)</th>
               </tr>
             </thead>
@@ -1176,6 +1178,7 @@ body {
                   <th>Anganwadi Centre</th>
                   <th>e-KYC Reason</th>
                   <th>Survey Status</th>
+                  <th>सर्वे दिनांक व समय (Date &amp; Time)</th>
                 </tr>
               </thead>
               <tbody id="reviewTableBody">
@@ -1799,6 +1802,9 @@ body {
             : `<span class="badge-status badge-pending">Pending</span>`
           }
         </td>
+        <td style="font-size: 12px; color: var(--gov-text-muted);">
+          ${survey && survey.surveyedAt ? escapeHtml(survey.surveyedAt) : '<span style="color: var(--gov-text-light);">-</span>'}
+        </td>
         <td style="text-align: center;">
           ${isCompleted
             ? `<button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewBeneficiary('${escapeHtml(b.applicantNo)}')">विवरण देखें</button>`
@@ -2050,6 +2056,9 @@ body {
             : `<span class="badge-status badge-pending">Pending</span>`
           }
         </td>
+        <td style="font-size: 12px; color: var(--gov-text-muted);">
+          ${survey && survey.surveyedAt ? escapeHtml(survey.surveyedAt) : '<span style="color: var(--gov-text-light);">-</span>'}
+        </td>
         <td style="text-align: center;">
           ${isCompleted
             ? `<button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewBeneficiary('${escapeHtml(b.applicantNo)}')">विवरण देखें</button>`
@@ -2081,7 +2090,8 @@ body {
     "Sector",
     "Anganwadi Centre",
     "e-KYC Reason",
-    "Survey Status"
+    "Survey Status",
+    "सर्वे दिनांक व समय (Date & Time)"
   ];
 
   window.openExportReviewModal = function () {
@@ -2103,6 +2113,7 @@ body {
         const survey = state.surveys[b.applicantNo];
         const reason = survey ? survey.reason : '';
         const isCompleted = !!(survey && survey.status === 'Completed');
+        const surveyedAt = survey && survey.surveyedAt ? survey.surveyedAt : '-';
         const tr = document.createElement('tr');
 
         tr.innerHTML = `
@@ -2120,6 +2131,7 @@ body {
               : `<span class="badge-status badge-pending">Pending</span>`
             }
           </td>
+          <td style="font-size: 12px; color: var(--gov-text-muted);">${escapeHtml(surveyedAt)}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -2167,6 +2179,7 @@ body {
       const isCompleted = !!(survey && survey.status === 'Completed');
       const statusText = isCompleted ? 'Completed' : 'Pending';
       const statusClass = isCompleted ? 'status-completed' : 'status-pending';
+      const surveyedAt = survey && survey.surveyedAt ? survey.surveyedAt : '-';
 
       tableHtml += '<tr>';
       tableHtml += `<td>${escapeHtml(b.applicantNo)}</td>`;
@@ -2177,6 +2190,7 @@ body {
       tableHtml += `<td>${escapeHtml(b.anganwadi)}</td>`;
       tableHtml += `<td>${escapeHtml(reason)}</td>`;
       tableHtml += `<td class="${statusClass}">${statusText}</td>`;
+      tableHtml += `<td>${escapeHtml(surveyedAt)}</td>`;
       tableHtml += '</tr>';
     });
 

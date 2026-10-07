@@ -341,14 +341,21 @@ function submitSurvey(record) {
         sSheet.getRange(targetRowIdx, 7).setValue(selectedReason);
       }
 
+      // Col P (16): सर्वे दिनांक व समय (Timestamp)
+      // Col Q (17): सर्वेकर्ता का नाम (Surveyed By)
+      sSheet.getRange(targetRowIdx, 16).setValue(dateStr);
+      sSheet.getRange(targetRowIdx, 17).setValue(surveyedBy);
+
       return {
         success: true,
         message: "सर्वे सफलतापूर्वक सुरक्षित किया गया!",
         applicantNo: applicantNo
       };
     } else if (targetRowIdx !== -1) {
-      // यदि हेडर अलग फॉर्मेट का हो तो कॉलम 7 में कारण दर्ज करें
+      // यदि हेडर अलग फॉर्मेट का हो तो कॉलम 7 में कारण और 8 में दिनांक दर्ज करें
       sSheet.getRange(targetRowIdx, 7).setValue(selectedReason);
+      sSheet.getRange(targetRowIdx, 8).setValue(dateStr);
+      sSheet.getRange(targetRowIdx, 9).setValue(surveyedBy);
       return {
         success: true,
         message: "सर्वे सफलतापूर्वक सुरक्षित किया गया!",

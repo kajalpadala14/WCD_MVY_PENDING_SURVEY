@@ -599,6 +599,9 @@
             : `<span class="badge-status badge-pending">Pending</span>`
           }
         </td>
+        <td style="font-size: 12px; color: var(--gov-text-muted);">
+          ${survey && survey.surveyedAt ? escapeHtml(survey.surveyedAt) : '<span style="color: var(--gov-text-light);">-</span>'}
+        </td>
         <td style="text-align: center;">
           ${isCompleted
             ? `<button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewBeneficiary('${escapeHtml(b.applicantNo)}')">विवरण देखें</button>`
@@ -850,6 +853,9 @@
             : `<span class="badge-status badge-pending">Pending</span>`
           }
         </td>
+        <td style="font-size: 12px; color: var(--gov-text-muted);">
+          ${survey && survey.surveyedAt ? escapeHtml(survey.surveyedAt) : '<span style="color: var(--gov-text-light);">-</span>'}
+        </td>
         <td style="text-align: center;">
           ${isCompleted
             ? `<button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewBeneficiary('${escapeHtml(b.applicantNo)}')">विवरण देखें</button>`
@@ -881,7 +887,8 @@
     "Sector",
     "Anganwadi Centre",
     "e-KYC Reason",
-    "Survey Status"
+    "Survey Status",
+    "सर्वे दिनांक व समय (Date & Time)"
   ];
 
   window.openExportReviewModal = function () {
@@ -903,6 +910,7 @@
         const survey = state.surveys[b.applicantNo];
         const reason = survey ? survey.reason : '';
         const isCompleted = !!(survey && survey.status === 'Completed');
+        const surveyedAt = survey && survey.surveyedAt ? survey.surveyedAt : '-';
         const tr = document.createElement('tr');
 
         tr.innerHTML = `
@@ -920,6 +928,7 @@
               : `<span class="badge-status badge-pending">Pending</span>`
             }
           </td>
+          <td style="font-size: 12px; color: var(--gov-text-muted);">${escapeHtml(surveyedAt)}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -967,6 +976,7 @@
       const isCompleted = !!(survey && survey.status === 'Completed');
       const statusText = isCompleted ? 'Completed' : 'Pending';
       const statusClass = isCompleted ? 'status-completed' : 'status-pending';
+      const surveyedAt = survey && survey.surveyedAt ? survey.surveyedAt : '-';
 
       tableHtml += '<tr>';
       tableHtml += `<td>${escapeHtml(b.applicantNo)}</td>`;
@@ -977,6 +987,7 @@
       tableHtml += `<td>${escapeHtml(b.anganwadi)}</td>`;
       tableHtml += `<td>${escapeHtml(reason)}</td>`;
       tableHtml += `<td class="${statusClass}">${statusText}</td>`;
+      tableHtml += `<td>${escapeHtml(surveyedAt)}</td>`;
       tableHtml += '</tr>';
     });
 
