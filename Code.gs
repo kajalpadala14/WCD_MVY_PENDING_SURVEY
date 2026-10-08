@@ -1,5 +1,5 @@
 /**
- * MVY Pending Survey - जिला पंचायत दंतेवाड़ा
+ * MVY Pending Survey - महिला एवं बाल विकास विभाग ,Dantewada
  * Google Apps Script Backend (Code.gs)
  *
  * 100% Dynamic & Google Sheet Powered:
@@ -31,7 +31,7 @@ function doGet(e) {
 
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('MVY Pending Survey - जिला पंचायत दंतेवाड़ा')
+    .setTitle('MVY Pending Survey - महिला एवं बाल विकास विभाग ,Dantewada')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -213,6 +213,7 @@ function getCompletedSurveys() {
 
     // 9 कारणों की सूची
     var reasonCols = [
+      "E-kyc कराया जाना शेष है",
       "फिंगर एवं आईरिस से e-KYC संभव नहीं",
       "पलायन",
       "हितग्राही ज्ञात है, परन्तु वर्तमान पते पर उपलब्ध नहीं है",
@@ -220,8 +221,7 @@ function getCompletedSurveys() {
       "मृत्यु",
       "शारीरिक रूप से अक्षम एवं बीमार",
       "हितग्राही e-KYC करवाना नहीं चाहती हैं।",
-      "e-KYC अस्वीकृत",
-      "प्रक्रियाधीन"
+      "e-KYC अस्वीकृत"
     ];
 
     // हेडर रो खोजें (जहाँ कारण लिखे हों)
@@ -245,6 +245,10 @@ function getCompletedSurveys() {
             break;
           }
         }
+        // बैकवर्ड कम्पैटिबिलिटी: यदि शीट हेडर में अभी भी 'प्रक्रियाधीन' लिखा हो
+        if (!colReasonMap[c] && hText.indexOf("प्रक्रियाधीन") !== -1) {
+          colReasonMap[c] = "E-kyc कराया जाना शेष है";
+        }
       }
     }
 
@@ -255,11 +259,11 @@ function getCompletedSurveys() {
       var appNo = (row[0] || "").toString().trim();
       if (!appNo) continue;
 
-      // चेक करें कि क्या 9 कॉलमों में कोई 1 या 'yes' भरा है
+      // चेक करें कि क्या 9 कॉलमों में कोई कारण (reason text) या 1 या 'yes' भरा है
       var matchedReason = "";
       for (var colIdx in colReasonMap) {
         var val = (row[colIdx] || "").toString().trim();
-        if (val === "1" || val.toLowerCase() === "yes" || val === "हाँ" || val === "true") {
+        if (val === "1" || val.toLowerCase() === "yes" || val === "हाँ" || val === "true" || val === colReasonMap[colIdx] || val.length > 2) {
           matchedReason = colReasonMap[colIdx];
           break;
         }
@@ -268,6 +272,11 @@ function getCompletedSurveys() {
       // यदि मानक फॉर्मेट (Col G में कारण का नाम) हो
       if (!matchedReason && row[6] && typeof row[6] === "string" && row[6].length > 2) {
         matchedReason = row[6].trim();
+      }
+
+      // यदि पहले का रिकॉर्ड 'प्रक्रियाधीन' हो तो उसे 'E-kyc कराया जाना शेष है' से मैप करें
+      if (matchedReason === "प्रक्रियाधीन") {
+        matchedReason = "E-kyc कराया जाना शेष है";
       }
 
       if (matchedReason) {
@@ -330,7 +339,7 @@ function submitSurvey(record) {
     var surveyedBy = record.surveyedBy || "Operator";
 
     if (targetRowIdx !== -1 && headerRowIdx !== -1) {
-      // यूजर की मौजूदा शीट संरचना में संबंधित कारण कॉलम में 1 लगाएं
+      // संबंधित कारण कॉलम खोजें
       var reasonColIdx = -1;
       for (var c = 6; c < data[headerRowIdx].length; c++) {
         var hText = (data[headerRowIdx][c] || "").toString().trim();
@@ -338,10 +347,16 @@ function submitSurvey(record) {
           reasonColIdx = c + 1; // 1-based column
           break;
         }
+        // बैकवर्ड कम्पैटिबिलिटी: यदि शीट हेडर में 'प्रक्रियाधीन' या 'शेष' लिखा हो
+        if (selectedReason === "E-kyc कराया जाना शेष है" && (hText.indexOf("प्रक्रियाधीन") !== -1 || hText.indexOf("शेष") !== -1)) {
+          reasonColIdx = c + 1;
+          break;
+        }
       }
 
       if (reasonColIdx !== -1) {
-        sSheet.getRange(targetRowIdx, reasonColIdx).setValue(1);
+        // नंबर (1) के स्थान पर पूरा कारण (Reason text) दर्ज करें
+        sSheet.getRange(targetRowIdx, reasonColIdx).setValue(selectedReason);
       } else {
         // यदि सीधा कारण कॉलम न मिले तो Col G (7) में कारण लिखें
         sSheet.getRange(targetRowIdx, 7).setValue(selectedReason);

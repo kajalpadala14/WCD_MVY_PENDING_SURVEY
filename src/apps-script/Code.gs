@@ -213,6 +213,7 @@ function getCompletedSurveys() {
 
     // 9 कारणों की सूची
     var reasonCols = [
+      "E-kyc कराया जाना शेष है",
       "फिंगर एवं आईरिस से e-KYC संभव नहीं",
       "पलायन",
       "हितग्राही ज्ञात है, परन्तु वर्तमान पते पर उपलब्ध नहीं है",
@@ -220,8 +221,7 @@ function getCompletedSurveys() {
       "मृत्यु",
       "शारीरिक रूप से अक्षम एवं बीमार",
       "हितग्राही e-KYC करवाना नहीं चाहती हैं।",
-      "e-KYC अस्वीकृत",
-      "प्रक्रियाधीन"
+      "e-KYC अस्वीकृत"
     ];
 
     // हेडर रो खोजें (जहाँ कारण लिखे हों)
@@ -244,6 +244,10 @@ function getCompletedSurveys() {
             colReasonMap[c] = reasonCols[k];
             break;
           }
+        }
+        // बैकवर्ड कम्पैटिबिलिटी: यदि शीट हेडर में अभी भी 'प्रक्रियाधीन' लिखा हो
+        if (!colReasonMap[c] && hText.indexOf("प्रक्रियाधीन") !== -1) {
+          colReasonMap[c] = "E-kyc कराया जाना शेष है";
         }
       }
     }
@@ -268,6 +272,11 @@ function getCompletedSurveys() {
       // यदि मानक फॉर्मेट (Col G में कारण का नाम) हो
       if (!matchedReason && row[6] && typeof row[6] === "string" && row[6].length > 2) {
         matchedReason = row[6].trim();
+      }
+
+      // यदि पहले का रिकॉर्ड 'प्रक्रियाधीन' हो तो उसे 'E-kyc कराया जाना शेष है' से मैप करें
+      if (matchedReason === "प्रक्रियाधीन") {
+        matchedReason = "E-kyc कराया जाना शेष है";
       }
 
       if (matchedReason) {
@@ -330,12 +339,17 @@ function submitSurvey(record) {
     var surveyedBy = record.surveyedBy || "Operator";
 
     if (targetRowIdx !== -1 && headerRowIdx !== -1) {
-      // यूजर की मौजूदा शीट संरचना में संबंधित कारण कॉलम में 1 लगाएं
+      // संबंधित कारण कॉलम खोजें
       var reasonColIdx = -1;
       for (var c = 6; c < data[headerRowIdx].length; c++) {
         var hText = (data[headerRowIdx][c] || "").toString().trim();
         if (hText.indexOf(selectedReason.substring(0, 5)) !== -1) {
           reasonColIdx = c + 1; // 1-based column
+          break;
+        }
+        // बैकवर्ड कम्पैटिबिलिटी: यदि शीट हेडर में 'प्रक्रियाधीन' या 'शेष' लिखा हो
+        if (selectedReason === "E-kyc कराया जाना शेष है" && (hText.indexOf("प्रक्रियाधीन") !== -1 || hText.indexOf("शेष") !== -1)) {
+          reasonColIdx = c + 1;
           break;
         }
       }

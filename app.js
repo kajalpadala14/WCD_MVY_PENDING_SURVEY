@@ -9,6 +9,7 @@
 
   // Exactly 9 reasons specified in requirements
   const SURVEY_REASONS = [
+    "E-kyc कराया जाना शेष है",
     "फिंगर एवं आईरिस से e-KYC संभव नहीं",
     "पलायन",
     "हितग्राही ज्ञात है, परन्तु वर्तमान पते पर उपलब्ध नहीं है",
@@ -16,8 +17,7 @@
     "मृत्यु",
     "शारीरिक रूप से अक्षम एवं बीमार",
     "हितग्राही e-KYC करवाना नहीं चाहती हैं।",
-    "e-KYC अस्वीकृत",
-    "प्रक्रियाधीन"
+    "e-KYC अस्वीकृत"
   ];
 
   // Application State
@@ -49,12 +49,22 @@
     fetchRemoteDataIfAppsScript();
   }
 
+  function normalizeSurveysMap(map) {
+    if (!map || typeof map !== 'object') return {};
+    Object.keys(map).forEach(k => {
+      if (map[k] && map[k].reason === 'प्रक्रियाधीन') {
+        map[k].reason = 'E-kyc कराया जाना शेष है';
+      }
+    });
+    return map;
+  }
+
   // --- Storage & Sync ---
   function loadSurveysFromStorage() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_SURVEYS);
       if (stored) {
-        state.surveys = JSON.parse(stored);
+        state.surveys = normalizeSurveysMap(JSON.parse(stored));
       } else {
         state.surveys = {};
       }
@@ -95,7 +105,7 @@
       google.script.run
         .withSuccessHandler(function (remoteMap) {
           if (remoteMap && typeof remoteMap === 'object') {
-            state.surveys = remoteMap;
+            state.surveys = normalizeSurveysMap(remoteMap);
             saveSurveysToStorage();
             refreshCurrentView();
           }
@@ -152,7 +162,7 @@
       })
       .then(remoteMap => {
         if (remoteMap && typeof remoteMap === 'object') {
-          state.surveys = remoteMap;
+          state.surveys = normalizeSurveysMap(remoteMap);
           saveSurveysToStorage();
           refreshCurrentView();
         } else if (!remoteMap || Object.keys(remoteMap || {}).length === 0) {
