@@ -585,7 +585,7 @@
     const project = document.getElementById('filterProject').value;
     const sector = document.getElementById('filterSector').value;
     const anganwadi = document.getElementById('filterAnganwadi').value;
-    const reason = document.getElementById('filterReason').value;
+    const reason = document.getElementById('filterReason') ? document.getElementById('filterReason').value : '';
     const status = document.getElementById('filterStatus').value;
     const search = document.getElementById('filterSearch').value.trim().toLowerCase();
 

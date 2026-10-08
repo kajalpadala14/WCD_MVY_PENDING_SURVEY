@@ -151,12 +151,6 @@ ${css}
             </select>
           </div>
           <div class="form-group">
-            <label for="filterReason">e-KYC Reason (कारण):</label>
-            <select id="filterReason" class="form-control">
-              <option value="">-- सभी कारण --</option>
-            </select>
-          </div>
-          <div class="form-group">
             <label for="filterStatus">Survey Status (स्थिति):</label>
             <select id="filterStatus" class="form-control">
               <option value="">-- सभी स्थिति --</option>
@@ -235,12 +229,6 @@ ${css}
             <label for="reportFilterAnganwadi">Anganwadi Centre (आंगनवाड़ी केंद्र):</label>
             <select id="reportFilterAnganwadi" class="form-control">
               <option value="">-- सभी केंद्र --</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="reportFilterReason">e-KYC Reason (कारण):</label>
-            <select id="reportFilterReason" class="form-control">
-              <option value="">-- सभी कारण --</option>
             </select>
           </div>
           <div class="form-group">
