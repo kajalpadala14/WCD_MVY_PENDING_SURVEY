@@ -354,6 +354,8 @@
     if (userBadge) userBadge.style.display = 'none';
     const logoutBtn = document.getElementById('btnLogout');
     if (logoutBtn) logoutBtn.style.display = 'none';
+    const reportNav = document.querySelector('.nav-link[data-target="reportSection"]');
+    if (reportNav) reportNav.style.display = '';
   }
 
   function showMainApp() {
@@ -374,8 +376,17 @@
 
     // Role-based Navigation & Visibility
     // Admin: Can view all (Dashboard, Pending List, Survey Report)
-    // Operator: Primary focus is conducting surveys (Pending List)
-    if (state.user.role === 'operator') {
+    // Operator: Primary focus is conducting surveys (Pending List) - Hide Survey Report
+    const reportNav = document.querySelector('.nav-link[data-target="reportSection"]');
+    const isOperator = !!(state.user && state.user.role && state.user.role.toLowerCase() === 'operator');
+
+    if (reportNav) {
+      reportNav.style.display = isOperator ? 'none' : '';
+    }
+
+    if (isOperator) {
+      const reportSec = document.getElementById('reportSection');
+      if (reportSec) reportSec.classList.remove('active');
       switchTab('pendingListSection');
     } else {
       switchTab('dashboardSection');
@@ -384,6 +395,11 @@
 
   // --- Navigation ---
   function switchTab(sectionId) {
+    const isOperator = !!(state.user && state.user.role && state.user.role.toLowerCase() === 'operator');
+    if (isOperator && sectionId === 'reportSection') {
+      sectionId = 'pendingListSection';
+    }
+
     document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
     document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
 
