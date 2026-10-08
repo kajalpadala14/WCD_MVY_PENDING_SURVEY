@@ -20,6 +20,9 @@
     "e-KYC अस्वीकृत"
   ];
 
+  // Active Google Apps Script Web App Deployment URL
+  const APPS_SCRIPT_FALLBACK_URL = "https://script.google.com/macros/s/AKfycby4MhsULd3Q0-lrFGy-EE2D5uwk35jLHPmxknwv8uP7pPOz2DJ8PU64GCMRVDqPYLB1kg/exec";
+
   // Application State
   const state = {
     user: null, // { role: 'survey_user' | 'admin', username: string }
@@ -130,7 +133,7 @@
       })
       .catch(err => {
         console.warn('Proxy fetch beneficiaries error, trying direct fallback:', err);
-        return fetch('https://script.google.com/macros/s/AKfycbz_98bYm3D30F82_pIe8U1Uj51qf9B657P1r0rD-9bM/exec?action=getBeneficiaries')
+        return fetch(`${APPS_SCRIPT_FALLBACK_URL}?action=getBeneficiaries`)
           .then(r => r.json());
       })
       .then(remoteList => {
@@ -157,7 +160,7 @@
       })
       .catch(err => {
         console.warn('Proxy fetch surveys error, trying direct fallback:', err);
-        return fetch('https://script.google.com/macros/s/AKfycbz_98bYm3D30F82_pIe8U1Uj51qf9B657P1r0rD-9bM/exec?action=getCompletedSurveys&_t=' + Date.now())
+        return fetch(`${APPS_SCRIPT_FALLBACK_URL}?action=getCompletedSurveys&_t=` + Date.now())
           .then(r => r.json());
       })
       .then(remoteMap => {
@@ -275,7 +278,14 @@
     if (alertBox) alertBox.style.display = 'none';
 
     fetch(`/api/verifyLogin?userId=${encodeURIComponent(userId)}&password=${encodeURIComponent(password)}`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('Proxy status: ' + r.status);
+        return r.json();
+      })
+      .catch(err => {
+        return fetch(`${APPS_SCRIPT_FALLBACK_URL}?action=verifyLogin&userId=${encodeURIComponent(userId)}&password=${encodeURIComponent(password)}`)
+          .then(r => r.json());
+      })
       .then(result => {
         if (btnSubmit) {
           btnSubmit.disabled = false;
@@ -839,9 +849,22 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'submitSurvey', record: surveyRecord })
       })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('Proxy status: ' + r.status);
+        return r.json();
+      })
       .then(res => console.log('Survey saved via local proxy to Google Sheet:', res))
-      .catch(err => console.error('Failed to sync via local proxy:', err));
+      .catch(err => {
+        console.warn('Failed to sync via local proxy, trying direct fallback:', err);
+        return fetch(APPS_SCRIPT_FALLBACK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'submitSurvey', record: surveyRecord })
+        })
+        .then(r => r.json())
+        .then(res => console.log('Survey saved via direct fallback to Google Sheet:', res))
+        .catch(err2 => console.error('Direct fallback sync also failed:', err2));
+      });
     }
 
     alert(`सर्वे सफलतापूर्वक सुरक्षित किया गया!\nहितग्राही: ${state.selectedBeneficiary.name} (${applicantNo})\nकारण: ${selectedReason}`);
