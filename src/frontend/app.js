@@ -1233,6 +1233,12 @@
         updateReportSectorsAndAwcs();
       });
     }
+    const reportReason = document.getElementById('reportFilterReason');
+    if (reportReason) {
+      reportReason.addEventListener('change', function () {
+        applyReportFilters();
+      });
+    }
 
     // Report Pagination
     document.getElementById('btnPrevReportPage').addEventListener('click', function () {

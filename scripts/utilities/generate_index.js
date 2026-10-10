@@ -232,6 +232,12 @@ ${css}
             </select>
           </div>
           <div class="form-group">
+            <label for="reportFilterReason">e-KYC Reason (कारण):</label>
+            <select id="reportFilterReason" class="form-control">
+              <option value="">-- सभी कारण --</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label for="reportFilterStatus">Survey Status (स्थिति):</label>
             <select id="reportFilterStatus" class="form-control">
               <option value="">-- सभी स्थिति --</option>
