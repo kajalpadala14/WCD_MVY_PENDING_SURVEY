@@ -642,6 +642,27 @@ body {
   border-color: var(--gov-primary);
 }
 
+.reason-option-label:has(input[type="radio"]:checked) {
+  background-color: #eff6ff;
+  border-color: var(--gov-primary);
+  box-shadow: 0 0 0 1px var(--gov-primary);
+}
+
+.reason-option-label.reason-completed-option {
+  border-left: 4px solid #16a34a;
+}
+
+.reason-option-label.reason-completed-option:hover {
+  background-color: #f0fdf4;
+  border-color: #16a34a;
+}
+
+.reason-option-label.reason-completed-option:has(input[type="radio"]:checked) {
+  background-color: #f0fdf4;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 1px #16a34a;
+}
+
 .reason-option-label input[type="radio"] {
   margin-top: 3px;
   cursor: pointer;

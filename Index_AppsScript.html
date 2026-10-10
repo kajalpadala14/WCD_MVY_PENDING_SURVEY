@@ -649,6 +649,27 @@ body {
   border-color: var(--gov-primary);
 }
 
+.reason-option-label:has(input[type="radio"]:checked) {
+  background-color: #eff6ff;
+  border-color: var(--gov-primary);
+  box-shadow: 0 0 0 1px var(--gov-primary);
+}
+
+.reason-option-label.reason-completed-option {
+  border-left: 4px solid #16a34a;
+}
+
+.reason-option-label.reason-completed-option:hover {
+  background-color: #f0fdf4;
+  border-color: #16a34a;
+}
+
+.reason-option-label.reason-completed-option:has(input[type="radio"]:checked) {
+  background-color: #f0fdf4;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 1px #16a34a;
+}
+
 .reason-option-label input[type="radio"] {
   margin-top: 3px;
   cursor: pointer;
@@ -1095,7 +1116,7 @@ html {
       <div class="table-card" style="margin-top: 10px;">
         <div class="table-header-info">
           <strong>कारण-वार सर्वे रिपोर्ट (Reason-wise Count)</strong>
-          <span>कुल 9 निर्धारित कारण</span>
+          <span>कुल 10 निर्धारित कारण</span>
         </div>
         <div class="table-responsive">
           <table class="gov-table">
@@ -1399,9 +1420,10 @@ html {
 (function () {
   'use strict';
 
-  // Exactly 9 reasons specified in requirements
+  // 10 reasons specified in requirements
   const SURVEY_REASONS = [
     "E-kyc कराया जाना शेष है",
+    "E-kyc पूर्ण हो गया है",
     "फिंगर एवं आईरिस से e-KYC संभव नहीं",
     "पलायन",
     "हितग्राही ज्ञात है, परन्तु वर्तमान पते पर उपलब्ध नहीं है",
@@ -1926,10 +1948,12 @@ html {
     container.innerHTML = '';
     SURVEY_REASONS.forEach((reason, index) => {
       const label = document.createElement('label');
-      label.className = 'reason-option-label';
+      const isCompleted = (reason === 'E-kyc पूर्ण हो गया है');
+      label.className = 'reason-option-label' + (isCompleted ? ' reason-completed-option' : '');
       label.innerHTML = `
         <input type="radio" name="ekycReason" value="${escapeHtml(reason)}" id="reason_${index}" required>
-        <span><strong>${index + 1}.</strong> ${escapeHtml(reason)}</span>
+        <span style="flex: 1;"><strong>${index + 1}.</strong> ${escapeHtml(reason)}</span>
+        ${isCompleted ? '<span class="badge-status badge-completed" style="font-size: 11px; margin-left: auto;">e-KYC Done</span>' : ''}
       `;
       container.appendChild(label);
     });

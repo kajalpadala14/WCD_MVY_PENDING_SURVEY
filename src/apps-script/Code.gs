@@ -211,9 +211,10 @@ function getCompletedSurveys() {
     var data = sSheet.getDataRange().getValues();
     var map = {};
 
-    // 9 कारणों की सूची
+    // 10 कारणों की सूची
     var reasonCols = [
       "E-kyc कराया जाना शेष है",
+      "E-kyc पूर्ण हो गया है",
       "फिंगर एवं आईरिस से e-KYC संभव नहीं",
       "पलायन",
       "हितग्राही ज्ञात है, परन्तु वर्तमान पते पर उपलब्ध नहीं है",
@@ -239,15 +240,20 @@ function getCompletedSurveys() {
     if (headerRowIdx !== -1) {
       for (var c = 6; c < data[headerRowIdx].length; c++) {
         var hText = (data[headerRowIdx][c] || "").toString().trim();
-        for (var k = 0; k < reasonCols.length; k++) {
-          if (hText.indexOf(reasonCols[k].substring(0, 5)) !== -1) {
-            colReasonMap[c] = reasonCols[k];
-            break;
-          }
-        }
-        // बैकवर्ड कम्पैटिबिलिटी: यदि शीट हेडर में अभी भी 'प्रक्रियाधीन' लिखा हो
-        if (!colReasonMap[c] && hText.indexOf("प्रक्रियाधीन") !== -1) {
+        if (!hText) continue;
+
+        if (hText.indexOf("पूर्ण") !== -1) {
+          colReasonMap[c] = "E-kyc पूर्ण हो गया है";
+        } else if (hText.indexOf("शेष") !== -1 || hText.indexOf("प्रक्रियाधीन") !== -1) {
           colReasonMap[c] = "E-kyc कराया जाना शेष है";
+        } else {
+          for (var k = 0; k < reasonCols.length; k++) {
+            if (reasonCols[k] === "E-kyc पूर्ण हो गया है" || reasonCols[k] === "E-kyc कराया जाना शेष है") continue;
+            if (hText.indexOf(reasonCols[k].substring(0, 5)) !== -1) {
+              colReasonMap[c] = reasonCols[k];
+              break;
+            }
+          }
         }
       }
     }
@@ -343,14 +349,23 @@ function submitSurvey(record) {
       var reasonColIdx = -1;
       for (var c = 6; c < data[headerRowIdx].length; c++) {
         var hText = (data[headerRowIdx][c] || "").toString().trim();
-        if (hText.indexOf(selectedReason.substring(0, 5)) !== -1) {
+        if (hText === selectedReason) {
           reasonColIdx = c + 1; // 1-based column
           break;
         }
-        // बैकवर्ड कम्पैटिबिलिटी: यदि शीट हेडर में 'प्रक्रियाधीन' या 'शेष' लिखा हो
+        if (selectedReason === "E-kyc पूर्ण हो गया है" && hText.indexOf("पूर्ण") !== -1) {
+          reasonColIdx = c + 1;
+          break;
+        }
         if (selectedReason === "E-kyc कराया जाना शेष है" && (hText.indexOf("प्रक्रियाधीन") !== -1 || hText.indexOf("शेष") !== -1)) {
           reasonColIdx = c + 1;
           break;
+        }
+        if (selectedReason !== "E-kyc पूर्ण हो गया है" && selectedReason !== "E-kyc कराया जाना शेष है") {
+          if (hText.indexOf(selectedReason.substring(0, 5)) !== -1) {
+            reasonColIdx = c + 1;
+            break;
+          }
         }
       }
 

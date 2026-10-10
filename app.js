@@ -7,9 +7,10 @@
 (function () {
   'use strict';
 
-  // Exactly 9 reasons specified in requirements
+  // 10 reasons specified in requirements
   const SURVEY_REASONS = [
     "E-kyc कराया जाना शेष है",
+    "E-kyc पूर्ण हो गया है",
     "फिंगर एवं आईरिस से e-KYC संभव नहीं",
     "पलायन",
     "हितग्राही ज्ञात है, परन्तु वर्तमान पते पर उपलब्ध नहीं है",
@@ -534,10 +535,12 @@
     container.innerHTML = '';
     SURVEY_REASONS.forEach((reason, index) => {
       const label = document.createElement('label');
-      label.className = 'reason-option-label';
+      const isCompleted = (reason === 'E-kyc पूर्ण हो गया है');
+      label.className = 'reason-option-label' + (isCompleted ? ' reason-completed-option' : '');
       label.innerHTML = `
         <input type="radio" name="ekycReason" value="${escapeHtml(reason)}" id="reason_${index}" required>
-        <span><strong>${index + 1}.</strong> ${escapeHtml(reason)}</span>
+        <span style="flex: 1;"><strong>${index + 1}.</strong> ${escapeHtml(reason)}</span>
+        ${isCompleted ? '<span class="badge-status badge-completed" style="font-size: 11px; margin-left: auto;">e-KYC Done</span>' : ''}
       `;
       container.appendChild(label);
     });

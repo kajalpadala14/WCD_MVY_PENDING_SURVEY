@@ -105,7 +105,7 @@ ${css}
       <div class="table-card" style="margin-top: 10px;">
         <div class="table-header-info">
           <strong>कारण-वार सर्वे रिपोर्ट (Reason-wise Count)</strong>
-          <span>कुल 9 निर्धारित कारण</span>
+          <span>कुल 10 निर्धारित कारण</span>
         </div>
         <div class="table-responsive">
           <table class="gov-table">
