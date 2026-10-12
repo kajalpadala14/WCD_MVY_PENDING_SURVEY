@@ -446,6 +446,60 @@ body {
   border: 1px solid #86efac;
 }
 
+.gov-table tfoot td {
+  padding: 10px 12px;
+  background-color: #f1f5f9;
+  font-weight: 700;
+  border-top: 2px solid #cbd5e1;
+  border-bottom: none;
+}
+
+.progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 130px;
+}
+
+.progress-track {
+  flex: 1;
+  background-color: #e2e8f0;
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.progress-fill.progress-low {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.progress-fill.progress-zero {
+  background-color: #cbd5e1;
+}
+
+.progress-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gov-primary-dark);
+  min-width: 44px;
+  text-align: right;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
 /* Pagination */
 .pagination-bar {
   padding: 10px 16px;

@@ -102,10 +102,53 @@ ${css}
         </div>
       </div>
 
+      <!-- ================= PROJECT-WISE SURVEY SUMMARY ================= -->
+      <div class="table-card" style="margin-top: 14px; margin-bottom: 20px;">
+        <div class="table-header-info">
+          <div>
+            <strong style="color: var(--gov-primary); font-size: 14px;">
+              📁 परियोजना-वार सर्वे प्रगति (Project-wise Survey Progress)
+            </strong>
+            <div style="font-size: 12px; color: var(--gov-text-muted); margin-top: 2px;">
+              प्रत्येक परियोजना में कुल हितग्राही, पूर्ण सर्वे, शेष लंबित एवं प्रगति प्रतिशत
+            </div>
+          </div>
+          <div id="dashboardProjectCountBadge" style="font-weight: 700; color: var(--gov-primary); font-size: 13px;">
+            कुल परियोजनाएं: <span id="projectCountNum" style="background: var(--gov-primary); color: #ffffff; padding: 2px 8px; border-radius: 10px; margin-left: 4px;">0</span>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th style="width: 50px; text-align: center;">क्र.</th>
+                <th>परियोजना का नाम (Project Name)</th>
+                <th style="text-align: right; width: 140px;">कुल हितग्राही (Total)</th>
+                <th style="text-align: right; width: 130px;">सर्वे पूर्ण (Completed)</th>
+                <th style="text-align: right; width: 130px;">सर्वे शेष (Pending)</th>
+                <th style="width: 170px;">प्रगति (Progress %)</th>
+                <th style="width: 110px; text-align: center;">कार्यवाही (Action)</th>
+              </tr>
+            </thead>
+            <tbody id="dashboardProjectTableBody">
+            </tbody>
+            <tfoot id="dashboardProjectTableFoot">
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= REASON-WISE REPORT TABLE ================= -->
       <div class="table-card" style="margin-top: 10px;">
         <div class="table-header-info">
-          <strong>कारण-वार सर्वे रिपोर्ट (Reason-wise Count)</strong>
-          <span>कुल 10 निर्धारित कारण</span>
+          <div>
+            <strong style="color: var(--gov-primary); font-size: 14px;">
+              📋 कारण-वार सर्वे रिपोर्ट (Reason-wise Count)
+            </strong>
+            <div style="font-size: 12px; color: var(--gov-text-muted); margin-top: 2px;">
+              कुल 10 निर्धारित कारण
+            </div>
+          </div>
         </div>
         <div class="table-responsive">
           <table class="gov-table">
@@ -119,6 +162,8 @@ ${css}
             </thead>
             <tbody id="dashboardReasonTableBody">
             </tbody>
+            <tfoot id="dashboardReasonTableFoot">
+            </tfoot>
           </table>
         </div>
       </div>

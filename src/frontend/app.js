@@ -556,11 +556,30 @@
       reasonCounts[r] = 0;
     });
 
-    // Count surveys
+    // Project-wise aggregation
+    const projectStats = {};
+
+    // Count surveys & aggregate project data
     state.beneficiaries.forEach(b => {
+      const proj = (b.project && b.project.trim()) ? b.project.trim() : 'अन्य / अनिर्दिष्ट';
+      if (!projectStats[proj]) {
+        projectStats[proj] = {
+          name: proj,
+          total: 0,
+          completed: 0,
+          pending: 0,
+          sectors: new Set(),
+          awcs: new Set()
+        };
+      }
+      projectStats[proj].total++;
+      if (b.sector && b.sector.trim()) projectStats[proj].sectors.add(b.sector.trim());
+      if (b.anganwadi && b.anganwadi.trim()) projectStats[proj].awcs.add(b.anganwadi.trim());
+
       const survey = state.surveys[b.applicantNo];
       if (survey && survey.status === 'Completed') {
         completedCount++;
+        projectStats[proj].completed++;
         if (survey.reason && reasonCounts.hasOwnProperty(survey.reason)) {
           reasonCounts[survey.reason]++;
         } else if (survey.reason) {
@@ -586,12 +605,105 @@
       if (elRemaining) elRemaining.textContent = surveyPendingCount.toLocaleString('en-IN');
     }
 
-    // Reason-wise Report Table
+    // --- 1. Project-wise Survey Progress Table ---
+    const projectList = Object.values(projectStats).sort((a, b) => a.name.localeCompare(b.name, 'hi'));
+    projectList.forEach(p => {
+      p.pending = Math.max(0, p.total - p.completed);
+      p.progressPct = p.total > 0 ? ((p.completed / p.total) * 100).toFixed(1) : '0.0';
+    });
+
+    const elProjectCount = document.getElementById('projectCountNum');
+    if (elProjectCount) {
+      elProjectCount.textContent = projectList.length;
+    }
+
+    const projTbody = document.getElementById('dashboardProjectTableBody');
+    const projTfoot = document.getElementById('dashboardProjectTableFoot');
+    if (projTbody) {
+      projTbody.innerHTML = '';
+      if (state.isLoadingBeneficiaries && totalPending === 0) {
+        projTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 24px; color: var(--gov-primary);"><i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Google Sheet से लाइव डेटा लोड हो रहा है, कृपया प्रतीक्षा करें...</td></tr>';
+        if (projTfoot) projTfoot.innerHTML = '';
+      } else if (projectList.length === 0) {
+        projTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gov-text-muted);">कोई परियोजना डेटा उपलब्ध नहीं है।</td></tr>';
+        if (projTfoot) projTfoot.innerHTML = '';
+      } else {
+        projectList.forEach((p, idx) => {
+          const tr = document.createElement('tr');
+          const numPct = parseFloat(p.progressPct);
+          const fillClass = numPct === 0 ? 'progress-zero' : (numPct < 30 ? 'progress-low' : '');
+          tr.innerHTML = `
+            <td style="text-align: center; width: 50px;">${idx + 1}</td>
+            <td>
+              <strong style="color: var(--gov-primary); font-size: 13.5px;">${escapeHtml(p.name)}</strong>
+              <div style="font-size: 11px; color: var(--gov-text-muted); margin-top: 2px;">
+                <span title="कुल आंगनबाड़ी केंद्र">🏠 ${p.awcs.size} केंद्र</span> • 
+                <span title="कुल सेक्टर">📂 ${p.sectors.size} सेक्टर</span>
+              </div>
+            </td>
+            <td style="text-align: right; font-weight: 700; width: 140px; font-size: 13.5px;">
+              ${p.total.toLocaleString('en-IN')}
+            </td>
+            <td style="text-align: right; width: 130px;">
+              <span class="badge-status badge-completed" style="font-size: 12px; font-weight: 700;">
+                ✓ ${p.completed.toLocaleString('en-IN')}
+              </span>
+            </td>
+            <td style="text-align: right; width: 130px;">
+              <span class="badge-status badge-pending" style="font-size: 12px; font-weight: 700;">
+                ⏳ ${p.pending.toLocaleString('en-IN')}
+              </span>
+            </td>
+            <td style="width: 170px;">
+              <div class="progress-bar-container">
+                <div class="progress-track" title="${p.progressPct}% पूर्ण">
+                  <div class="progress-fill ${fillClass}" style="width: ${p.progressPct}%;"></div>
+                </div>
+                <span class="progress-text">${p.progressPct}%</span>
+              </div>
+            </td>
+            <td style="width: 110px; text-align: center;">
+              <button type="button" class="btn btn-primary btn-sm btn-filter-project" data-project="${escapeHtml(p.name)}" title="${escapeHtml(p.name)} की हितग्राही सूची देखें">
+                सूची देखें →
+              </button>
+            </td>
+          `;
+          projTbody.appendChild(tr);
+        });
+
+        if (projTfoot) {
+          const overallPct = totalPending > 0 ? ((completedCount / totalPending) * 100).toFixed(1) : '0.0';
+          const fillClassOverall = parseFloat(overallPct) === 0 ? 'progress-zero' : (parseFloat(overallPct) < 30 ? 'progress-low' : '');
+          projTfoot.innerHTML = `
+            <tr>
+              <td style="text-align: center;">-</td>
+              <td><strong>कुल योग (Total)</strong></td>
+              <td style="text-align: right; font-size: 14px; font-weight: 800;">${totalPending.toLocaleString('en-IN')}</td>
+              <td style="text-align: right; font-size: 14px; font-weight: 800; color: var(--gov-green);">✓ ${completedCount.toLocaleString('en-IN')}</td>
+              <td style="text-align: right; font-size: 14px; font-weight: 800; color: var(--gov-danger);">⏳ ${surveyPendingCount.toLocaleString('en-IN')}</td>
+              <td>
+                <div class="progress-bar-container">
+                  <div class="progress-track" title="${overallPct}% पूर्ण">
+                    <div class="progress-fill ${fillClassOverall}" style="width: ${overallPct}%;"></div>
+                  </div>
+                  <span class="progress-text">${overallPct}%</span>
+                </div>
+              </td>
+              <td style="text-align: center;">-</td>
+            </tr>
+          `;
+        }
+      }
+    }
+
+    // --- 2. Reason-wise Report Table ---
     const tbody = document.getElementById('dashboardReasonTableBody');
+    const reasonTfoot = document.getElementById('dashboardReasonTableFoot');
     if (tbody) {
       tbody.innerHTML = '';
       if (state.isLoadingBeneficiaries && totalPending === 0) {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 24px; color: var(--gov-primary);"><i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Google Sheet से लाइव डेटा लोड हो रहा है, कृपया प्रतीक्षा करें...</td></tr>';
+        if (reasonTfoot) reasonTfoot.innerHTML = '';
         return;
       }
       SURVEY_REASONS.forEach((reason, idx) => {
@@ -606,6 +718,45 @@
         `;
         tbody.appendChild(tr);
       });
+
+      if (reasonTfoot) {
+        const reasonPct = totalPending > 0 ? ((completedCount / totalPending) * 100).toFixed(1) : '0.0';
+        reasonTfoot.innerHTML = `
+          <tr>
+            <td style="text-align: center;">-</td>
+            <td><strong>कुल पूर्ण सर्वे (Total Completed)</strong></td>
+            <td style="text-align: right; font-weight: 800; font-size: 14px; color: var(--gov-green);">${completedCount.toLocaleString('en-IN')}</td>
+            <td style="text-align: right; font-weight: 800; color: var(--gov-primary);">${reasonPct}%</td>
+          </tr>
+        `;
+      }
+    }
+  }
+
+  // --- Shortcut to View Beneficiaries filtered by Project ---
+  function viewProjectBeneficiaries(projectName) {
+    const filterProj = document.getElementById('filterProject');
+    if (filterProj) {
+      filterProj.value = projectName;
+      updatePendingSectorsAndAwcs();
+    }
+    const filterSec = document.getElementById('filterSector');
+    if (filterSec) filterSec.value = '';
+    const filterAwc = document.getElementById('filterAnganwadi');
+    if (filterAwc) filterAwc.value = '';
+    const filterStatus = document.getElementById('filterStatus');
+    if (filterStatus) filterStatus.value = '';
+    const filterReason = document.getElementById('filterReason');
+    if (filterReason) filterReason.value = '';
+    const filterSearch = document.getElementById('filterSearch');
+    if (filterSearch) filterSearch.value = '';
+
+    switchTab('pendingListSection');
+    applyFilters();
+
+    const targetSec = document.getElementById('pendingListSection');
+    if (targetSec) {
+      targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
 
@@ -1154,6 +1305,18 @@
         switchTab(targetId);
       });
     });
+
+    // Dashboard Project-wise Table Actions
+    const projectTableBody = document.getElementById('dashboardProjectTableBody');
+    if (projectTableBody) {
+      projectTableBody.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-filter-project');
+        if (btn) {
+          const proj = btn.getAttribute('data-project');
+          if (proj) viewProjectBeneficiaries(proj);
+        }
+      });
+    }
 
     // Pending List Filters
     document.getElementById('btnFilterApply').addEventListener('click', applyFilters);
