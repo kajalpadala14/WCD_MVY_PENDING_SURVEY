@@ -1560,6 +1560,91 @@ html {
   const STORAGE_KEY_SURVEYS = 'mvy_survey_records_2026';
   const STORAGE_KEY_AUTH = 'mvy_survey_auth_session';
 
+  // Fast string collator instance for quick Hindi/English sorting (reuses collator)
+  const hindiCollator = new Intl.Collator('hi', { sensitivity: 'base', numeric: true });
+
+  // Pre-indexed hierarchy for instant O(1) dropdown cascading
+  const hierarchy = {
+    projects: [],
+    allSectors: [],
+    allAwcs: [],
+    projectSectors: {},
+    sectorAwcs: {},
+    projectAllAwcs: {}
+  };
+
+  function buildHierarchyIndex() {
+    const projectSet = new Set();
+    const projSectorsMap = {};
+    const sectorAwcsMap = {};
+    const projAllAwcsMap = {};
+    const allSectorsSet = new Set();
+    const allAwcsSet = new Set();
+
+    for (let i = 0; i < state.beneficiaries.length; i++) {
+      const b = state.beneficiaries[i];
+      const p = b.project;
+      const s = b.sector;
+      const a = b.anganwadi;
+
+      if (p) projectSet.add(p);
+      if (s) allSectorsSet.add(s);
+      if (a) allAwcsSet.add(a);
+
+      if (p) {
+        if (!projSectorsMap[p]) projSectorsMap[p] = new Set();
+        if (s) projSectorsMap[p].add(s);
+
+        if (!projAllAwcsMap[p]) projAllAwcsMap[p] = new Set();
+        if (a) projAllAwcsMap[p].add(a);
+
+        if (s && a) {
+          const key = `${p}::${s}`;
+          if (!sectorAwcsMap[key]) sectorAwcsMap[key] = new Set();
+          sectorAwcsMap[key].add(a);
+        }
+      }
+    }
+
+    hierarchy.projects = Array.from(projectSet).sort(hindiCollator.compare);
+    hierarchy.allSectors = Array.from(allSectorsSet).sort(hindiCollator.compare);
+    hierarchy.allAwcs = Array.from(allAwcsSet).sort(hindiCollator.compare);
+
+    hierarchy.projectSectors = {};
+    Object.keys(projSectorsMap).forEach(p => {
+      hierarchy.projectSectors[p] = Array.from(projSectorsMap[p]).sort(hindiCollator.compare);
+    });
+
+    hierarchy.sectorAwcs = {};
+    Object.keys(sectorAwcsMap).forEach(k => {
+      hierarchy.sectorAwcs[k] = Array.from(sectorAwcsMap[k]).sort(hindiCollator.compare);
+    });
+
+    hierarchy.projectAllAwcs = {};
+    Object.keys(projAllAwcsMap).forEach(p => {
+      hierarchy.projectAllAwcs[p] = Array.from(projAllAwcsMap[p]).sort(hindiCollator.compare);
+    });
+  }
+
+  function setBeneficiaries(list) {
+    if (!Array.isArray(list)) list = [];
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      b.applicantNo = (b.applicantNo || '').toString().trim();
+      b.name = (b.name || '').toString().trim();
+      b.aadhaar = (b.aadhaar || '').toString().trim();
+      b.project = (b.project || '').toString().trim();
+      b.sector = (b.sector || '').toString().trim();
+      b.anganwadi = (b.anganwadi || '').toString().trim();
+      // Pre-calculate lowercased search string for instant search without repeated lowercasing
+      b._searchKey = `${b.applicantNo} ${b.name} ${b.aadhaar}`.toLowerCase();
+    }
+    state.beneficiaries = list;
+    buildHierarchyIndex();
+    state.filteredBeneficiaries = [...state.beneficiaries];
+    state.filteredReports = [...state.beneficiaries];
+  }
+
   // --- Initializer ---
   function initApp() {
     loadSurveysFromStorage();
@@ -1611,9 +1696,7 @@ html {
       google.script.run
         .withSuccessHandler(function (remoteList) {
           if (Array.isArray(remoteList) && remoteList.length > 0) {
-            state.beneficiaries = remoteList;
-            state.filteredBeneficiaries = [...state.beneficiaries];
-            state.filteredReports = [...state.beneficiaries];
+            setBeneficiaries(remoteList);
             try { localStorage.setItem(STORAGE_KEY_BENEFICIARIES, JSON.stringify(remoteList)); } catch (e) {}
             populateFilterDropdowns();
             refreshCurrentView();
@@ -1658,7 +1741,7 @@ html {
       .then(remoteList => {
         state.isLoadingBeneficiaries = false;
         if (Array.isArray(remoteList) && remoteList.length > 0) {
-          state.beneficiaries = remoteList;
+          setBeneficiaries(remoteList);
           try { localStorage.setItem(STORAGE_KEY_BENEFICIARIES, JSON.stringify(remoteList)); } catch (e) {}
           populateFilterDropdowns();
           refreshCurrentView();
@@ -1700,20 +1783,18 @@ html {
 
   // --- Beneficiary Data ---
   function loadBeneficiaries() {
+    let rawList = [];
     try {
       const cached = localStorage.getItem(STORAGE_KEY_BENEFICIARIES);
       if (cached) {
-        state.beneficiaries = JSON.parse(cached);
+        rawList = JSON.parse(cached);
       } else if (window.INITIAL_BENEFICIARIES && Array.isArray(window.INITIAL_BENEFICIARIES)) {
-        state.beneficiaries = window.INITIAL_BENEFICIARIES;
-      } else {
-        state.beneficiaries = [];
+        rawList = window.INITIAL_BENEFICIARIES;
       }
     } catch (e) {
-      state.beneficiaries = [];
+      rawList = [];
     }
-    state.filteredBeneficiaries = [...state.beneficiaries];
-    state.filteredReports = [...state.beneficiaries];
+    setBeneficiaries(rawList);
   }
 
   // --- Session & Roles ---
@@ -1947,101 +2028,116 @@ html {
     }
   }
 
-  // --- Populate Filters & Cascading Handlers ---
-  function populateSelectOptions(selectId, items, placeholder) {
-    const select = document.getElementById(selectId);
-    if (!select) return;
-    const currentVal = select.value;
-    select.innerHTML = `<option value="">${placeholder}</option>`;
-    const sorted = Array.from(items).sort((a, b) => a.localeCompare(b));
-    sorted.forEach(val => {
-      const opt = document.createElement('option');
-      opt.value = val;
-      opt.textContent = val;
-      if (val === currentVal) opt.selected = true;
-      select.appendChild(opt);
-    });
+  // --- Populate Filters & Fast Cascading Handlers (O(1) Indexed) ---
+  function renderSelectOptions(selectEl, items, placeholder, selectedVal) {
+    if (!selectEl) return;
+    let html = `<option value="">${placeholder}</option>`;
+    if (Array.isArray(items)) {
+      for (let i = 0; i < items.length; i++) {
+        const val = items[i];
+        const isSel = (val === selectedVal) ? ' selected' : '';
+        html += `<option value="${escapeHtml(val)}"${isSel}>${escapeHtml(val)}</option>`;
+      }
+    }
+    selectEl.innerHTML = html;
   }
 
   function updatePendingSectorsAndAwcs() {
-    const selectedProject = document.getElementById('filterProject') ? document.getElementById('filterProject').value : '';
-    const selectedSector = document.getElementById('filterSector') ? document.getElementById('filterSector').value : '';
+    const filterProj = document.getElementById('filterProject');
+    const filterSec = document.getElementById('filterSector');
+    const filterAwc = document.getElementById('filterAnganwadi');
+    if (!filterSec || !filterAwc) return;
 
-    const sectors = new Set();
-    const awcs = new Set();
+    const selectedProj = filterProj ? filterProj.value : '';
+    const selectedSec = filterSec.value;
+    const selectedAwc = filterAwc.value;
 
-    state.beneficiaries.forEach(b => {
-      if (!selectedProject || b.project === selectedProject) {
-        if (b.sector) sectors.add(b.sector);
-        if (!selectedSector || b.sector === selectedSector) {
-          if (b.anganwadi) awcs.add(b.anganwadi);
-        }
+    let availableSectors = [];
+    let availableAwcs = [];
+
+    if (selectedProj) {
+      availableSectors = hierarchy.projectSectors[selectedProj] || [];
+      if (selectedSec) {
+        availableAwcs = hierarchy.sectorAwcs[`${selectedProj}::${selectedSec}`] || [];
+      } else {
+        availableAwcs = hierarchy.projectAllAwcs[selectedProj] || [];
       }
-    });
+    } else {
+      availableSectors = hierarchy.allSectors || [];
+      availableAwcs = hierarchy.allAwcs || [];
+    }
 
-    populateSelectOptions('filterSector', sectors, '-- सभी सेक्टर --');
-    populateSelectOptions('filterAnganwadi', awcs, '-- सभी केंद्र --');
+    renderSelectOptions(filterSec, availableSectors, '-- सभी सेक्टर --', selectedSec);
+    if (selectedSec && !availableSectors.includes(selectedSec)) {
+      filterSec.value = '';
+    }
+
+    renderSelectOptions(filterAwc, availableAwcs, '-- सभी केंद्र --', selectedAwc);
+    if (selectedAwc && !availableAwcs.includes(selectedAwc)) {
+      filterAwc.value = '';
+    }
   }
 
   function updateReportSectorsAndAwcs() {
-    const selectedProject = document.getElementById('reportFilterProject') ? document.getElementById('reportFilterProject').value : '';
-    const selectedSector = document.getElementById('reportFilterSector') ? document.getElementById('reportFilterSector').value : '';
+    const reportProj = document.getElementById('reportFilterProject');
+    const reportSec = document.getElementById('reportFilterSector');
+    const reportAwc = document.getElementById('reportFilterAnganwadi');
+    if (!reportSec || !reportAwc) return;
 
-    const sectors = new Set();
-    const awcs = new Set();
+    const selectedProj = reportProj ? reportProj.value : '';
+    const selectedSec = reportSec.value;
+    const selectedAwc = reportAwc.value;
 
-    state.beneficiaries.forEach(b => {
-      if (!selectedProject || b.project === selectedProject) {
-        if (b.sector) sectors.add(b.sector);
-        if (!selectedSector || b.sector === selectedSector) {
-          if (b.anganwadi) awcs.add(b.anganwadi);
-        }
+    let availableSectors = [];
+    let availableAwcs = [];
+
+    if (selectedProj) {
+      availableSectors = hierarchy.projectSectors[selectedProj] || [];
+      if (selectedSec) {
+        availableAwcs = hierarchy.sectorAwcs[`${selectedProj}::${selectedSec}`] || [];
+      } else {
+        availableAwcs = hierarchy.projectAllAwcs[selectedProj] || [];
       }
-    });
+    } else {
+      availableSectors = hierarchy.allSectors || [];
+      availableAwcs = hierarchy.allAwcs || [];
+    }
 
-    populateSelectOptions('reportFilterSector', sectors, '-- सभी सेक्टर --');
-    populateSelectOptions('reportFilterAnganwadi', awcs, '-- सभी केंद्र --');
+    renderSelectOptions(reportSec, availableSectors, '-- सभी सेक्टर --', selectedSec);
+    if (selectedSec && !availableSectors.includes(selectedSec)) {
+      reportSec.value = '';
+    }
+
+    renderSelectOptions(reportAwc, availableAwcs, '-- सभी केंद्र --', selectedAwc);
+    if (selectedAwc && !availableAwcs.includes(selectedAwc)) {
+      reportAwc.value = '';
+    }
   }
 
   function populateFilterDropdowns() {
-    const projects = new Set();
-    const sectors = new Set();
-    const awcs = new Set();
+    const filterProj = document.getElementById('filterProject');
+    const reportProj = document.getElementById('reportFilterProject');
 
-    state.beneficiaries.forEach(b => {
-      if (b.project) projects.add(b.project);
-      if (b.sector) sectors.add(b.sector);
-      if (b.anganwadi) awcs.add(b.anganwadi);
-    });
+    if (filterProj) {
+      renderSelectOptions(filterProj, hierarchy.projects || [], '-- सभी परियोजनाएं --', filterProj.value);
+    }
+    if (reportProj) {
+      renderSelectOptions(reportProj, hierarchy.projects || [], '-- सभी परियोजनाएं --', reportProj.value);
+    }
 
-    // Populate Projects
-    populateSelectOptions('filterProject', projects, '-- सभी परियोजनाएं --');
-    populateSelectOptions('reportFilterProject', projects, '-- सभी परियोजनाएं --');
-
-    // Populate Initial Sectors & AWCs
     updatePendingSectorsAndAwcs();
     updateReportSectorsAndAwcs();
 
     // Populate Reasons in Pending List
     const filterReasonSelect = document.getElementById('filterReason');
     if (filterReasonSelect && filterReasonSelect.options.length <= 1) {
-      SURVEY_REASONS.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r;
-        opt.textContent = r;
-        filterReasonSelect.appendChild(opt);
-      });
+      renderSelectOptions(filterReasonSelect, SURVEY_REASONS, '-- सभी कारण --', filterReasonSelect.value);
     }
 
     // Populate Reasons in Report Section
     const reportFilterReason = document.getElementById('reportFilterReason');
     if (reportFilterReason && reportFilterReason.options.length <= 1) {
-      SURVEY_REASONS.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r;
-        opt.textContent = r;
-        reportFilterReason.appendChild(opt);
-      });
+      renderSelectOptions(reportFilterReason, SURVEY_REASONS, '-- सभी कारण --', reportFilterReason.value);
     }
   }
 
@@ -2278,33 +2374,36 @@ html {
     }
   }
 
-  // --- Filtering Beneficiaries (Pending List) ---
+  // --- Filtering Beneficiaries (Pending List) - Fast Filter ---
   function applyFilters() {
-    const project = document.getElementById('filterProject').value;
-    const sector = document.getElementById('filterSector').value;
-    const anganwadi = document.getElementById('filterAnganwadi').value;
+    const project = document.getElementById('filterProject') ? document.getElementById('filterProject').value : '';
+    const sector = document.getElementById('filterSector') ? document.getElementById('filterSector').value : '';
+    const anganwadi = document.getElementById('filterAnganwadi') ? document.getElementById('filterAnganwadi').value : '';
     const reason = document.getElementById('filterReason') ? document.getElementById('filterReason').value : '';
-    const status = document.getElementById('filterStatus').value;
-    const search = document.getElementById('filterSearch').value.trim().toLowerCase();
+    const status = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : '';
+    const searchInput = document.getElementById('filterSearch');
+    const search = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+    const hasSurveyFilter = status !== '' || reason !== '';
 
     state.filteredBeneficiaries = state.beneficiaries.filter(b => {
-      const survey = state.surveys[b.applicantNo];
-      const isCompleted = !!(survey && survey.status === 'Completed');
-      const curReason = survey ? survey.reason : '';
-
+      // 1. Fast equality checks first (discards 90%+ instantly without lookup)
       if (project && b.project !== project) return false;
       if (sector && b.sector !== sector) return false;
       if (anganwadi && b.anganwadi !== anganwadi) return false;
-      if (reason && curReason !== reason) return false;
 
-      if (status === 'Completed' && !isCompleted) return false;
-      if (status === 'Pending' && isCompleted) return false;
+      // 2. Search check using pre-calculated search string
+      if (search && !(b._searchKey || '').includes(search)) return false;
 
-      if (search) {
-        const appNoMatch = b.applicantNo.toLowerCase().includes(search);
-        const nameMatch = b.name.toLowerCase().includes(search);
-        const aadharMatch = b.aadhaar.includes(search);
-        if (!appNoMatch && !nameMatch && !aadharMatch) return false;
+      // 3. Survey check only if needed
+      if (hasSurveyFilter) {
+        const survey = state.surveys[b.applicantNo];
+        const isCompleted = !!(survey && survey.status === 'Completed');
+        const curReason = survey ? survey.reason : '';
+
+        if (status === 'Completed' && !isCompleted) return false;
+        if (status === 'Pending' && isCompleted) return false;
+        if (reason && curReason !== reason) return false;
       }
 
       return true;
@@ -2325,7 +2424,7 @@ html {
     applyFilters();
   }
 
-  // --- Render Pending Table ---
+  // --- Render Pending Table (Single-shot innerHTML for max speed) ---
   function renderPendingTable() {
     const tbody = document.getElementById('pendingTableBody');
     if (!tbody) return;
@@ -2335,12 +2434,14 @@ html {
     const endIdx = Math.min(startIdx + state.pageSize, total);
     const pageRecords = state.filteredBeneficiaries.slice(startIdx, endIdx);
 
-    document.getElementById('pendingCountDisplay').textContent =
-      `कुल हितग्राही: ${total.toLocaleString('en-IN')} (प्रदर्शित ${total > 0 ? startIdx + 1 : 0} से ${endIdx})`;
+    const countDisplay = document.getElementById('pendingCountDisplay');
+    if (countDisplay) {
+      countDisplay.textContent =
+        `कुल हितग्राही: ${total.toLocaleString('en-IN')} (प्रदर्शित ${total > 0 ? startIdx + 1 : 0} से ${endIdx})`;
+    }
 
-    tbody.innerHTML = '';
     if (state.isLoadingBeneficiaries && total === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 32px; color: var(--gov-primary); font-size: 14px;"><i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Google Sheet से हितग्राही सूची लोड हो रही है (कुल 3,360 रिकॉर्ड्स)...</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 32px; color: var(--gov-primary); font-size: 14px;"><i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Google Sheet से हितग्राही सूची लोड हो रही है...</td></tr>`;
       renderPagination(0, 1);
       return;
     }
@@ -2351,37 +2452,36 @@ html {
       return;
     }
 
-    pageRecords.forEach(b => {
+    let html = '';
+    for (let i = 0; i < pageRecords.length; i++) {
+      const b = pageRecords[i];
       const survey = state.surveys[b.applicantNo];
       const isCompleted = !!(survey && survey.status === 'Completed');
-      const tr = document.createElement('tr');
+      const surveyedAt = survey && survey.surveyedAt ? escapeHtml(survey.surveyedAt) : '<span style="color: var(--gov-text-light);">-</span>';
+      const actionBtn = isCompleted
+        ? `<button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewBeneficiary('${escapeHtml(b.applicantNo)}')">विवरण देखें</button>`
+        : `<button class="btn btn-survey-action" onclick="window.openSurveyModal('${escapeHtml(b.applicantNo)}')">सर्वे करें</button>`;
 
-      tr.innerHTML = `
-        <td style="font-weight: 600; font-family: monospace;">${escapeHtml(b.applicantNo)}</td>
-        <td><strong>${escapeHtml(b.name)}</strong></td>
-        <td style="font-family: monospace;">${escapeHtml(b.aadhaar)}</td>
-        <td>${escapeHtml(b.project)}</td>
-        <td>${escapeHtml(b.sector)}</td>
-        <td>${escapeHtml(b.anganwadi)}</td>
-        <td>
-          ${isCompleted
-            ? `<span class="badge-status badge-completed">Completed</span>`
-            : `<span class="badge-status badge-pending">Pending</span>`
-          }
-        </td>
-        <td style="font-size: 12px; color: var(--gov-text-muted);">
-          ${survey && survey.surveyedAt ? escapeHtml(survey.surveyedAt) : '<span style="color: var(--gov-text-light);">-</span>'}
-        </td>
-        <td style="text-align: center;">
-          ${isCompleted
-            ? `<button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewBeneficiary('${escapeHtml(b.applicantNo)}')">विवरण देखें</button>`
-            : `<button class="btn btn-survey-action" onclick="window.openSurveyModal('${escapeHtml(b.applicantNo)}')">सर्वे करें</button>`
-          }
-        </td>
+      html += `
+        <tr>
+          <td style="font-weight: 600; font-family: monospace;">${escapeHtml(b.applicantNo)}</td>
+          <td><strong>${escapeHtml(b.name)}</strong></td>
+          <td style="font-family: monospace;">${escapeHtml(b.aadhaar)}</td>
+          <td>${escapeHtml(b.project)}</td>
+          <td>${escapeHtml(b.sector)}</td>
+          <td>${escapeHtml(b.anganwadi)}</td>
+          <td>
+            ${isCompleted
+              ? `<span class="badge-status badge-completed">Completed</span>`
+              : `<span class="badge-status badge-pending">Pending</span>`
+            }
+          </td>
+          <td style="font-size: 12px; color: var(--gov-text-muted);">${surveyedAt}</td>
+          <td style="text-align: center;">${actionBtn}</td>
+        </tr>
       `;
-      tbody.appendChild(tr);
-    });
-
+    }
+    tbody.innerHTML = html;
     renderPagination(total, state.currentPage);
   }
 
@@ -2563,7 +2663,7 @@ html {
     }
   }
 
-  // --- Survey Report & Export ---
+  // --- Survey Report & Export - Fast Filter ---
   function applyReportFilters() {
     const project = document.getElementById('reportFilterProject') ? document.getElementById('reportFilterProject').value : '';
     const sector = document.getElementById('reportFilterSector') ? document.getElementById('reportFilterSector').value : '';
@@ -2573,24 +2673,26 @@ html {
     const searchInput = document.getElementById('reportFilterSearch');
     const search = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
-    state.filteredReports = state.beneficiaries.filter(b => {
-      const survey = state.surveys[b.applicantNo];
-      const isCompleted = !!(survey && survey.status === 'Completed');
-      const curReason = survey ? survey.reason : '';
+    const hasSurveyFilter = status !== '' || reason !== '';
 
+    state.filteredReports = state.beneficiaries.filter(b => {
+      // 1. Fast equality checks first (discards 90%+ instantly)
       if (project && b.project !== project) return false;
       if (sector && b.sector !== sector) return false;
       if (anganwadi && b.anganwadi !== anganwadi) return false;
-      if (reason && curReason !== reason) return false;
 
-      if (status === 'Completed' && !isCompleted) return false;
-      if (status === 'Pending' && isCompleted) return false;
+      // 2. Search check using pre-calculated search string
+      if (search && !(b._searchKey || '').includes(search)) return false;
 
-      if (search) {
-        const appNoMatch = b.applicantNo.toLowerCase().includes(search);
-        const nameMatch = b.name.toLowerCase().includes(search);
-        const aadharMatch = b.aadhaar.includes(search);
-        if (!appNoMatch && !nameMatch && !aadharMatch) return false;
+      // 3. Survey check only if needed
+      if (hasSurveyFilter) {
+        const survey = state.surveys[b.applicantNo];
+        const isCompleted = !!(survey && survey.status === 'Completed');
+        const curReason = survey ? survey.reason : '';
+
+        if (status === 'Completed' && !isCompleted) return false;
+        if (status === 'Pending' && isCompleted) return false;
+        if (reason && curReason !== reason) return false;
       }
 
       return true;
@@ -2636,37 +2738,38 @@ html {
       return;
     }
 
-    pageRecords.forEach(b => {
+    let html = '';
+    for (let i = 0; i < pageRecords.length; i++) {
+      const b = pageRecords[i];
       const survey = state.surveys[b.applicantNo];
       const isCompleted = !!(survey && survey.status === 'Completed');
-      const tr = document.createElement('tr');
+      const surveyedAt = survey && survey.surveyedAt ? escapeHtml(survey.surveyedAt) : '<span style="color: var(--gov-text-light);">-</span>';
+      const reasonText = survey ? escapeHtml(survey.reason) : '<span style="color: var(--gov-text-light);">-</span>';
+      const actionBtn = isCompleted
+        ? `<button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewBeneficiary('${escapeHtml(b.applicantNo)}')">विवरण देखें</button>`
+        : `<button class="btn btn-survey-action" onclick="window.openSurveyModal('${escapeHtml(b.applicantNo)}')">सर्वे करें</button>`;
 
-      tr.innerHTML = `
-        <td style="font-family: monospace;">${escapeHtml(b.applicantNo)}</td>
-        <td><strong>${escapeHtml(b.name)}</strong></td>
-        <td style="font-family: monospace;">${escapeHtml(b.aadhaar)}</td>
-        <td>${escapeHtml(b.project)}</td>
-        <td>${escapeHtml(b.sector)}</td>
-        <td>${escapeHtml(b.anganwadi)}</td>
-        <td>${survey ? escapeHtml(survey.reason) : '<span style="color: var(--gov-text-light);">-</span>'}</td>
-        <td>
-          ${isCompleted
-            ? `<span class="badge-status badge-completed">Completed</span>`
-            : `<span class="badge-status badge-pending">Pending</span>`
-          }
-        </td>
-        <td style="font-size: 12px; color: var(--gov-text-muted);">
-          ${survey && survey.surveyedAt ? escapeHtml(survey.surveyedAt) : '<span style="color: var(--gov-text-light);">-</span>'}
-        </td>
-        <td style="text-align: center;">
-          ${isCompleted
-            ? `<button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewBeneficiary('${escapeHtml(b.applicantNo)}')">विवरण देखें</button>`
-            : `<button class="btn btn-survey-action" onclick="window.openSurveyModal('${escapeHtml(b.applicantNo)}')">सर्वे करें</button>`
-          }
-        </td>
+      html += `
+        <tr>
+          <td style="font-family: monospace;">${escapeHtml(b.applicantNo)}</td>
+          <td><strong>${escapeHtml(b.name)}</strong></td>
+          <td style="font-family: monospace;">${escapeHtml(b.aadhaar)}</td>
+          <td>${escapeHtml(b.project)}</td>
+          <td>${escapeHtml(b.sector)}</td>
+          <td>${escapeHtml(b.anganwadi)}</td>
+          <td>${reasonText}</td>
+          <td>
+            ${isCompleted
+              ? `<span class="badge-status badge-completed">Completed</span>`
+              : `<span class="badge-status badge-pending">Pending</span>`
+            }
+          </td>
+          <td style="font-size: 12px; color: var(--gov-text-muted);">${surveyedAt}</td>
+          <td style="text-align: center;">${actionBtn}</td>
+        </tr>
       `;
-      tbody.appendChild(tr);
-    });
+    }
+    tbody.innerHTML = html;
 
     renderReportPagination(total, state.reportPage);
   }
@@ -2707,33 +2810,39 @@ html {
 
     const tbody = document.getElementById('reviewTableBody');
     if (tbody) {
-      tbody.innerHTML = '';
-      state.filteredReports.forEach((b, index) => {
+      const previewLimit = Math.min(100, total);
+      if (badge && total > 100) {
+        badge.textContent = `📋 डाउनलोड हेतु कुल चयनित रिकॉर्ड: ${total.toLocaleString('en-IN')} (रिव्यू हेतु प्रथम 100 रिकॉर्ड्स प्रदर्शित, सभी डाउनलोड होंगे)`;
+      }
+      let html = '';
+      for (let index = 0; index < previewLimit; index++) {
+        const b = state.filteredReports[index];
         const survey = state.surveys[b.applicantNo];
         const reason = survey ? survey.reason : '';
         const isCompleted = !!(survey && survey.status === 'Completed');
         const surveyedAt = survey && survey.surveyedAt ? survey.surveyedAt : '-';
-        const tr = document.createElement('tr');
 
-        tr.innerHTML = `
-          <td style="text-align: center; color: var(--gov-text-muted); width: 50px;">${index + 1}</td>
-          <td style="font-family: monospace;">${escapeHtml(b.applicantNo)}</td>
-          <td><strong>${escapeHtml(b.name)}</strong></td>
-          <td style="font-family: monospace;">${escapeHtml(b.aadhaar)}</td>
-          <td>${escapeHtml(b.project)}</td>
-          <td>${escapeHtml(b.sector)}</td>
-          <td>${escapeHtml(b.anganwadi)}</td>
-          <td>${reason ? escapeHtml(reason) : '<span style="color: var(--gov-text-light);">-</span>'}</td>
-          <td>
-            ${isCompleted
-              ? `<span class="badge-status badge-completed">Completed</span>`
-              : `<span class="badge-status badge-pending">Pending</span>`
-            }
-          </td>
-          <td style="font-size: 12px; color: var(--gov-text-muted);">${escapeHtml(surveyedAt)}</td>
+        html += `
+          <tr>
+            <td style="text-align: center; color: var(--gov-text-muted); width: 50px;">${index + 1}</td>
+            <td style="font-family: monospace;">${escapeHtml(b.applicantNo)}</td>
+            <td><strong>${escapeHtml(b.name)}</strong></td>
+            <td style="font-family: monospace;">${escapeHtml(b.aadhaar)}</td>
+            <td>${escapeHtml(b.project)}</td>
+            <td>${escapeHtml(b.sector)}</td>
+            <td>${escapeHtml(b.anganwadi)}</td>
+            <td>${reason ? escapeHtml(reason) : '<span style="color: var(--gov-text-light);">-</span>'}</td>
+            <td>
+              ${isCompleted
+                ? `<span class="badge-status badge-completed">Completed</span>`
+                : `<span class="badge-status badge-pending">Pending</span>`
+              }
+            </td>
+            <td style="font-size: 12px; color: var(--gov-text-muted);">${escapeHtml(surveyedAt)}</td>
+          </tr>
         `;
-        tbody.appendChild(tr);
-      });
+      }
+      tbody.innerHTML = html;
     }
 
     const modal = document.getElementById('exportReviewModal');
@@ -2836,25 +2945,51 @@ html {
       });
     }
 
-    // Pending List Filters
+    // --- Pending List Filters: Instant Reactive & Debounced ---
     document.getElementById('btnFilterApply').addEventListener('click', applyFilters);
     document.getElementById('btnFilterReset').addEventListener('click', resetFilters);
-    document.getElementById('filterSearch').addEventListener('keyup', function (e) {
-      if (e.key === 'Enter') applyFilters();
-    });
 
-    // Pending List Cascading Dropdown Listeners
+    const filterSearch = document.getElementById('filterSearch');
+    if (filterSearch) {
+      let pendingSearchTimer = null;
+      filterSearch.addEventListener('input', function () {
+        clearTimeout(pendingSearchTimer);
+        pendingSearchTimer = setTimeout(applyFilters, 150);
+      });
+      filterSearch.addEventListener('keyup', function (e) {
+        if (e.key === 'Enter') {
+          clearTimeout(pendingSearchTimer);
+          applyFilters();
+        }
+      });
+    }
+
+    // Pending List Cascading Dropdown Listeners (Auto-cascade + Auto-filter instantly)
     const filterProj = document.getElementById('filterProject');
     if (filterProj) {
       filterProj.addEventListener('change', function () {
         updatePendingSectorsAndAwcs();
+        applyFilters();
       });
     }
     const filterSec = document.getElementById('filterSector');
     if (filterSec) {
       filterSec.addEventListener('change', function () {
         updatePendingSectorsAndAwcs();
+        applyFilters();
       });
+    }
+    const filterAwc = document.getElementById('filterAnganwadi');
+    if (filterAwc) {
+      filterAwc.addEventListener('change', applyFilters);
+    }
+    const filterStatus = document.getElementById('filterStatus');
+    if (filterStatus) {
+      filterStatus.addEventListener('change', applyFilters);
+    }
+    const filterReason = document.getElementById('filterReason');
+    if (filterReason) {
+      filterReason.addEventListener('change', applyFilters);
     }
 
     // Pagination Pending Table
@@ -2877,10 +3012,55 @@ html {
     document.getElementById('btnModalClose').addEventListener('click', closeSurveyModal);
     document.getElementById('btnModalCancel').addEventListener('click', closeSurveyModal);
 
-    // Report Filters & Export Review
+    // --- Report Filters: Instant Reactive & Debounced ---
     document.getElementById('btnReportFilterApply').addEventListener('click', applyReportFilters);
     document.getElementById('btnReportFilterReset').addEventListener('click', resetReportFilters);
-    
+
+    const reportSearch = document.getElementById('reportFilterSearch');
+    if (reportSearch) {
+      let reportSearchTimer = null;
+      reportSearch.addEventListener('input', function () {
+        clearTimeout(reportSearchTimer);
+        reportSearchTimer = setTimeout(applyReportFilters, 150);
+      });
+      reportSearch.addEventListener('keyup', function (e) {
+        if (e.key === 'Enter') {
+          clearTimeout(reportSearchTimer);
+          applyReportFilters();
+        }
+      });
+    }
+
+    // Report Cascading Dropdown Listeners (Auto-cascade + Auto-filter instantly)
+    const reportProj = document.getElementById('reportFilterProject');
+    if (reportProj) {
+      reportProj.addEventListener('change', function () {
+        updateReportSectorsAndAwcs();
+        applyReportFilters();
+      });
+    }
+    const reportSec = document.getElementById('reportFilterSector');
+    if (reportSec) {
+      reportSec.addEventListener('change', function () {
+        updateReportSectorsAndAwcs();
+        applyReportFilters();
+      });
+    }
+    const reportAwc = document.getElementById('reportFilterAnganwadi');
+    if (reportAwc) {
+      reportAwc.addEventListener('change', applyReportFilters);
+    }
+    const reportStatus = document.getElementById('reportFilterStatus');
+    if (reportStatus) {
+      reportStatus.addEventListener('change', applyReportFilters);
+    }
+    const reportReason = document.getElementById('reportFilterReason');
+    if (reportReason) {
+      reportReason.addEventListener('change', function () {
+        applyReportFilters();
+      });
+    }
+
     // Open Export Review Modal
     const btnOpenReview = document.getElementById('btnOpenExportReview');
     if (btnOpenReview) {
@@ -2893,33 +3073,6 @@ html {
     if (btnReviewCancel) btnReviewCancel.addEventListener('click', closeExportReviewModal);
     const btnConfirmExport = document.getElementById('btnConfirmExportExcel');
     if (btnConfirmExport) btnConfirmExport.addEventListener('click', exportDataToExcel);
-
-    const reportSearch = document.getElementById('reportFilterSearch');
-    if (reportSearch) {
-      reportSearch.addEventListener('keyup', function (e) {
-        if (e.key === 'Enter') applyReportFilters();
-      });
-    }
-
-    // Report Cascading Dropdown Listeners
-    const reportProj = document.getElementById('reportFilterProject');
-    if (reportProj) {
-      reportProj.addEventListener('change', function () {
-        updateReportSectorsAndAwcs();
-      });
-    }
-    const reportSec = document.getElementById('reportFilterSector');
-    if (reportSec) {
-      reportSec.addEventListener('change', function () {
-        updateReportSectorsAndAwcs();
-      });
-    }
-    const reportReason = document.getElementById('reportFilterReason');
-    if (reportReason) {
-      reportReason.addEventListener('change', function () {
-        applyReportFilters();
-      });
-    }
 
     // Report Pagination
     document.getElementById('btnPrevReportPage').addEventListener('click', function () {
