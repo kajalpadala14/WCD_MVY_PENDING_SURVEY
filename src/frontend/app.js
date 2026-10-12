@@ -732,10 +732,6 @@
             <td style="text-align: center; width: 50px;">${idx + 1}</td>
             <td>
               <strong style="color: var(--gov-primary); font-size: 13.5px;">${escapeHtml(p.name)}</strong>
-              <div style="font-size: 11px; color: var(--gov-text-muted); margin-top: 2px;">
-                <span title="कुल आंगनबाड़ी केंद्र">🏠 ${p.awcs.size} केंद्र</span> • 
-                <span title="कुल सेक्टर">📂 ${p.sectors.size} सेक्टर</span>
-              </div>
             </td>
             <td style="text-align: right; font-weight: 700; width: 140px; font-size: 13.5px;">
               ${p.total.toLocaleString('en-IN')}
